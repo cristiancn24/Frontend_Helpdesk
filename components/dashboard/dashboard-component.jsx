@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Info, AlertCircle, CheckCircle, Clock, Plus, Search, Users, X, Upload, Download } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
+import VisibleByRole from "@/components/VisibleByRole"
 
 export default function DashboardComponent() {
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
@@ -419,19 +420,23 @@ export default function DashboardComponent() {
               Buscar Tickets
             </Button>
 
-            <Button variant="outline" className="w-full justify-start bg-transparent">
-              <Download className="mr-2 h-4 w-4" />
-              Exportar Reportes
-            </Button>
+            <VisibleByRole allowedRoles={[1, 2]}>
+              <Button variant="outline" className="w-full justify-start bg-transparent">
+                <Download className="mr-2 h-4 w-4" />
+                Exportar Reportes
+              </Button>
+            </VisibleByRole>
 
-            <Button
-              variant="outline"
-              className="w-full justify-start bg-transparent"
-              onClick={() => (window.location.href = "/auth")}
-            >
-              <Users className="mr-2 h-4 w-4" />
-              Administrar Usuarios
-            </Button>
+            <VisibleByRole allowedRoles={[1]}>
+              <Button
+                variant="outline"
+                className="w-full justify-start bg-transparent"
+                onClick={() => (window.location.href = "/auth")}
+              >
+                <Users className="mr-2 h-4 w-4" />
+                Administrar Usuarios
+              </Button>
+            </VisibleByRole>
           </CardContent>
         </Card>
       </div>

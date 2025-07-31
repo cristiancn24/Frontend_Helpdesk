@@ -26,6 +26,7 @@ export default function Sidebar() {
       href: "/pool",
       icon: Ticket,
       label: "Pool Tickets",
+      roleRequired: [1, 2, 11],
     },
     {
       href: "/faq",

@@ -28,6 +28,7 @@ import {
   Printer,
 } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
+import VisibleByRole from "@/components/VisibleByRole"
 
 export default function FAQComponent() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -288,10 +289,12 @@ export default function FAQComponent() {
                   className="pl-10"
                 />
               </div>
+              <VisibleByRole roles={[1, 2, 3, 4, 11]}>
               <Button onClick={() => setIsNewFAQOpen(true)} className="bg-cyan-500 hover:bg-cyan-600 text-white">
                 <Plus className="mr-2 h-4 w-4" />
                 Crear Nueva Pregunta
               </Button>
+              </VisibleByRole>
             </div>
           </CardContent>
         </Card>

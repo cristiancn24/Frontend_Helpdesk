@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
 import TicketEditAndReassign from "@/components/tickets/ticket-edit-reasign-component"
+import VisibleByRole from "../VisibleByRole"
 
 export default function TicketsComponent() {
   const [editTicket, setEditTicket] = useState(null)
@@ -47,8 +48,6 @@ export default function TicketsComponent() {
     {
       id: "#1234",
       title: "Login Issue",
-      customer: "John Doe",
-      email: "john.doe@email.com",
       status: "Open",
       priority: "High",
       assignee: "Sarah Wilson",
@@ -61,8 +60,6 @@ export default function TicketsComponent() {
     {
       id: "#1233",
       title: "Password Reset",
-      customer: "Jane Smith",
-      email: "jane.smith@email.com",
       status: "Resolved",
       priority: "Medium",
       assignee: "Mike Johnson",
@@ -75,8 +72,6 @@ export default function TicketsComponent() {
     {
       id: "#1232",
       title: "Feature Request",
-      customer: "Mike Johnson",
-      email: "mike.j@email.com",
       status: "In Progress",
       priority: "Low",
       assignee: "Alex Chen",
@@ -89,8 +84,6 @@ export default function TicketsComponent() {
     {
       id: "#1231",
       title: "Bug Report - Dashboard",
-      customer: "Emily Davis",
-      email: "emily.d@email.com",
       status: "Open",
       priority: "High",
       assignee: "Sarah Wilson",
@@ -103,8 +96,6 @@ export default function TicketsComponent() {
     {
       id: "#1230",
       title: "Account Suspension",
-      customer: "Robert Brown",
-      email: "robert.b@email.com",
       status: "Closed",
       priority: "Medium",
       assignee: "Mike Johnson",
@@ -280,6 +271,7 @@ export default function TicketsComponent() {
                   <div className="space-y-6 py-4">
                     {/* Primera fila de filtros */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <VisibleByRole roles={[1, 2]}>
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Técnico</label>
                         <Select defaultValue="all">
@@ -295,6 +287,7 @@ export default function TicketsComponent() {
                           </SelectContent>
                         </Select>
                       </div>
+                      </VisibleByRole>
 
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Estado</label>
@@ -312,6 +305,7 @@ export default function TicketsComponent() {
                         </Select>
                       </div>
 
+                      <VisibleByRole roles={[1, 2]}>
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Prioridad</label>
                         <Select defaultValue="all">
@@ -327,9 +321,11 @@ export default function TicketsComponent() {
                           </SelectContent>
                         </Select>
                       </div>
+                      </VisibleByRole>
                     </div>
 
                     {/* Segunda fila de filtros */}
+                    <VisibleByRole roles={[1, 2]}>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Categoría</label>
@@ -371,6 +367,8 @@ export default function TicketsComponent() {
                         </Select>
                       </div>
                     </div>
+                    </VisibleByRole>
+
 
                     {/* Filtros de fecha */}
                     <div>
@@ -635,8 +633,7 @@ export default function TicketsComponent() {
             <TableHeader>
               <TableRow>
                 <TableHead>ID</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead>Cliente</TableHead>
+                <TableHead>Asunto</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Técnico</TableHead>
@@ -658,12 +655,6 @@ export default function TicketsComponent() {
                     <Link href={`/tickets/${ticket.id.replace("#", "")}`} className="hover:text-cyan-600">
                       <p className="font-medium">{ticket.title}</p>
                     </Link>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{ticket.customer}</p>
-                      <p className="text-sm text-gray-500">{ticket.email}</p>
-                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={getStatusBadge(ticket.status)}>

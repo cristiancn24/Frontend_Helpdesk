@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,8 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { Plus, Edit, Trash2, MoreHorizontal, Users, Shield, Key, UserCheck } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
+import axios from "axios"
+import axiosInstance from "@/services/axiosInstance"
 
 export default function AuthComponent() {
   const [activeSection, setActiveSection] = useState("users")
@@ -34,6 +36,29 @@ export default function AuthComponent() {
     status: "Activo",
   })
 
+  const [roles, setRoles] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [offices, setOffices] = useState([])
+
+useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const [rolesRes, officesRes, departmentsRes] = await Promise.all([
+        axiosInstance.get("/roles"),
+        //axiosInstance.get("/offices"),
+       // axiosInstance.get("/departments"),
+      ])
+
+      setRoles(rolesRes.data)
+      //setOffices(officesRes.data)
+      //setDepartments(departmentsRes.data)
+    } catch (error) {
+      console.error("Error al cargar datos:", error)
+    }
+  }
+
+  fetchData()
+}, [])
   // Datos de ejemplo para cada sección
   const authData = {
     users: [
@@ -262,39 +287,69 @@ export default function AuthComponent() {
       : "bg-gray-100 text-gray-800 hover:bg-gray-100"
   }
 
-  const handleAddItem = (e) => {
-    e.preventDefault()
+  
 
-    // Validación específica para usuarios
-    if (activeSection === "users") {
-      if (newItemForm.password !== newItemForm.confirmPassword) {
-        alert("Las contraseñas no coinciden")
-        return
-      }
-      if (newItemForm.password.length < 8) {
-        alert("La contraseña debe tener al menos 8 caracteres")
-        return
-      }
+  const handleAddItem = async (e) => {
+  e.preventDefault()
+
+  if (activeSection === "users") {
+    if (newItemForm.password !== newItemForm.confirmPassword) {
+      alert("Las contraseñas no coinciden")
+      return
     }
 
-    console.log("Nuevo elemento:", newItemForm, "Sección:", activeSection)
+    if (newItemForm.password.length < 8) {
+      alert("La contraseña debe tener al menos 8 caracteres")
+      return
+    }
 
-    setNewItemForm({
-      name: "",
-      lastname: "",
-      email: "",
-      password: "",
-      confirmPassword: "",
-      office: "",
-      department: "",
-      role: "",
-      description: "",
-      status: "Activo",
-    })
-    setIsAddModalOpen(false)
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "include", // importante para enviar cookies (token JWT)
+        body: JSON.stringify({
+          first_name: newItemForm.name,
+          last_name: newItemForm.lastname,
+          email: newItemForm.email,
+          password: newItemForm.password,
+          role_id: parseInt(newItemForm.role),
+          office_id: 1, // Ajusta esto según tu lógica
+          department_id: 1 // Ajusta esto también
+        })
+      })
 
-    alert("Elemento agregado exitosamente")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error al crear usuario")
+      }
+
+      alert("Usuario creado correctamente")
+      setIsAddModalOpen(false)
+
+    } catch (error) {
+      console.error("Error al crear usuario:", error.message)
+      alert(error.message)
+    }
   }
+
+  setNewItemForm({
+    name: "",
+    lastname: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    office: "",
+    department: "",
+    role: "",
+    description: "",
+    status: "Activo",
+  })
+}
+
 
   const handleFormChange = (field, value) => {
     setNewItemForm((prev) => ({
@@ -637,8 +692,8 @@ export default function AuthComponent() {
                   <SelectValue placeholder="Seleccione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {authData.roles.map((role) => (
-                    <SelectItem key={role.id} value={role.name}>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={String(role.id)}>
                       {role.name}
                     </SelectItem>
                   ))}

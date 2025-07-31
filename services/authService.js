@@ -1,9 +1,9 @@
 // services/authService.js
 import api from './axiosInstance';
 
-export const login = async (email, password) => {
+export const login = async (email, password, rememberme = false) => {
   try {
-    const response = await api.post('/users/login', { email, password }, { withCredentials: true });
+    const response = await api.post('/users/login', { email, password, rememberme }, { withCredentials: true });
     return response.data;
   } catch (error) {
     if (error.response?.data?.message) {

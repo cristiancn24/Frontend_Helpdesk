@@ -1,4 +1,3 @@
-// app/(protected)/layout.jsx
 "use client"
 
 import { useEffect, useState } from "react"
@@ -8,16 +7,22 @@ export default function ProtectedLayout({ children }) {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(null)
 
-  useEffect(() => {
-    const isAuth = localStorage.getItem("isAuthenticated")
-    if (!isAuth) {
-      router.replace("/login")
-    } else {
-      setIsAuthenticated(true)
-    }
-  }, [])
+ useEffect(() => {
+  const rememberMeValue = localStorage.getItem("rememberMe");
+  const rememberMe = rememberMeValue === "true";
+  const storage = rememberMeValue === null ? sessionStorage : (rememberMe ? localStorage : sessionStorage);
 
-  if (isAuthenticated === null) return null // muestra loader si quieres
+  const isAuth = storage.getItem("isAuthenticated");
+
+  if (!isAuth || isAuth !== "true") {
+    router.replace("/login");
+  } else {
+    setIsAuthenticated(true);
+  }
+}, []);
+
+
+  if (isAuthenticated === null) return null // loader opcional
 
   return <>{children}</>
 }

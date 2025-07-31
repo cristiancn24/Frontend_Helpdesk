@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, HelpCircle, Lock, Mail, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { login as loginService } from "../../services/authService"
+import { login as loginService } from "../../../services/authService"
 import { useRole } from "@/context/RoleContext"
 
 
@@ -24,6 +24,8 @@ export default function LoginPage() {
     password: "",
   })
   const { setRole } = useRole()
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+
 
 
    
@@ -37,36 +39,56 @@ export default function LoginPage() {
     if (error) setError("")
   }
 
+ useEffect(() => {
+  const remember = localStorage.getItem("rememberMe") === "true";
+  const storage = remember ? localStorage : sessionStorage;
+  const isAuth = storage.getItem("isAuthenticated") === "true";
+
+  if (isAuth) {
+    router.replace("/dashboard");
+  } else {
+    setIsCheckingAuth(false); // Solo mostramos el login si no está autenticado
+  }
+}, []);
+
+
   const handleSubmit = async (e) => {
-  e.preventDefault()
-  setIsLoading(true)
-  setError("")
+  e.preventDefault();
+  setIsLoading(true);
+  setError("");
 
   if (!formData.email || !formData.password) {
-    setError("Por favor, completa todos los campos")
-    setIsLoading(false)
-    return
+    setError("Por favor, completa todos los campos");
+    setIsLoading(false);
+    return;
   }
 
   try {
-  const { token, user } = await loginService(formData.email, formData.password)
+    const { token, user } = await loginService(formData.email, formData.password);
 
-  localStorage.setItem("token", token)
-  localStorage.setItem("userRole", user.role_id)
-  localStorage.setItem("userEmail", user.email)
-  localStorage.setItem("isAuthenticated", "true")
+    // Guardamos la preferencia de "recordarme"
+    localStorage.setItem("rememberMe", rememberMe.toString());
 
-  setRole(user.role_id) // 👈 Aquí se guarda en el contexto global
+    const storage = rememberMe ? localStorage : sessionStorage;
 
-  // Redirección según el rol
-  if (user.role_id === 1) router.push("/dashboard")
-  else router.push("/dashboard")
-} catch (err) {
-  setError(err.message)
-} finally {
-    setIsLoading(false)
+    storage.setItem("token", token);
+    storage.setItem("userRole", user.role_id);
+    storage.setItem("userEmail", user.email);
+    storage.setItem("isAuthenticated", "true");
+
+    setRole(user.role_id);
+
+    // Redirigimos al dashboard
+    router.push("/dashboard");
+  } catch (err) {
+    setError(err.message);
+  } finally {
+    setIsLoading(false);
   }
-}
+};
+
+
+
 
 
   return (

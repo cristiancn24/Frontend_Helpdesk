@@ -14,17 +14,18 @@ export default function Header({ title }) {
   const handleLogout = async () => {
   try {
     await logout();
-    localStorage.removeItem("isAuthenticated")
-    localStorage.removeItem("token")
-    localStorage.removeItem("userRole")
-    localStorage.removeItem("userEmail")
+    localStorage.clear();
+    sessionStorage.clear();
     toast.success("Sesión cerrada exitosamente", {
       position: "top-center",
       onClose: () => router.push("/login"),
       autoClose: 2000, // 2 segundos antes de redirigir
     });
   } catch (error) {
-    toast.error("Error al cerrar sesión");
+    toast.error("Error al cerrar sesión", {
+      position: "top-center",
+      autoClose: 2000,
+    });
   }
 };
 
