@@ -45,13 +45,13 @@ useEffect(() => {
     try {
       const [rolesRes, officesRes, departmentsRes] = await Promise.all([
         axiosInstance.get("/roles"),
-        //axiosInstance.get("/offices"),
-       // axiosInstance.get("/departments"),
+        axiosInstance.get("/offices"),
+        axiosInstance.get("/departments"),
       ])
 
       setRoles(rolesRes.data)
-      //setOffices(officesRes.data)
-      //setDepartments(departmentsRes.data)
+      setOffices(officesRes.data)
+      setDepartments(departmentsRes.data)
     } catch (error) {
       console.error("Error al cargar datos:", error)
     }
@@ -659,11 +659,11 @@ useEffect(() => {
                     <SelectValue placeholder="Seleccione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="centro">Sucursal Centro</SelectItem>
-                    <SelectItem value="norte">Sucursal Norte</SelectItem>
-                    <SelectItem value="sur">Sucursal Sur</SelectItem>
-                    <SelectItem value="este">Sucursal Este</SelectItem>
-                    <SelectItem value="oeste">Sucursal Oeste</SelectItem>
+                    {offices.map((office) => (
+                      <SelectItem key={office.id} value={String(office.id)}>
+                        {office.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -674,12 +674,11 @@ useEffect(() => {
                     <SelectValue placeholder="Seleccione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="it">IT Department</SelectItem>
-                    <SelectItem value="customer">Customer Service</SelectItem>
-                    <SelectItem value="development">Development</SelectItem>
-                    <SelectItem value="qa">QA Department</SelectItem>
-                    <SelectItem value="security">Security</SelectItem>
-                    <SelectItem value="hr">Human Resources</SelectItem>
+                    {departments.map((department) => (
+                      <SelectItem key={department.id} value={String(department.id)}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
