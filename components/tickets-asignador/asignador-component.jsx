@@ -20,7 +20,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Search, Filter, Plus, UserPlus, Users, MoreHorizontal, Eye, Edit, UserCheck, Tag } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
 
-export default function SupervisorComponent() {
+export default function AsignadorComponent() {
   const [selectedTickets, setSelectedTickets] = useState([])
   const [filterStatus, setFilterStatus] = useState("all")
   const [assignmentModal, setAssignmentModal] = useState(false)

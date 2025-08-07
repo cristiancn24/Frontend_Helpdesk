@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useAuth } from "@/context/AuthContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,9 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Info, AlertCircle, CheckCircle, Clock, Plus, Search, Users, X, Upload, Download } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
-import VisibleByRole from "@/components/VisibleByRole"
 
 export default function DashboardComponent() {
+  const { hasPermission } = useAuth()
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
   const [newTicketForm, setNewTicketForm] = useState({
     oficina: "",
@@ -225,10 +226,12 @@ export default function DashboardComponent() {
           <CardContent className="space-y-3">
             <Dialog open={isNewTicketOpen} onOpenChange={setIsNewTicketOpen}>
               <DialogTrigger asChild>
-                <Button className="w-full justify-start bg-cyan-500 hover:bg-cyan-600 text-white">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nuevo Ticket
-                </Button>
+                {hasPermission("create_ticket") && (
+                  <Button className="w-full justify-start bg-cyan-500 hover:bg-cyan-600 text-white">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nuevo Ticket
+                  </Button>
+                )}
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
@@ -411,6 +414,7 @@ export default function DashboardComponent() {
               </DialogContent>
             </Dialog>
 
+            {hasPermission("view_tickets") && (
             <Button
               variant="outline"
               className="w-full justify-start bg-transparent"
@@ -419,15 +423,17 @@ export default function DashboardComponent() {
               <Search className="mr-2 h-4 w-4" />
               Buscar Tickets
             </Button>
+            )}
 
-            <VisibleByRole allowedRoles={[1, 2]}>
+            {hasPermission("view_reports") && (
               <Button variant="outline" className="w-full justify-start bg-transparent">
                 <Download className="mr-2 h-4 w-4" />
                 Exportar Reportes
               </Button>
-            </VisibleByRole>
+            )}
 
-            <VisibleByRole allowedRoles={[1]}>
+
+            {hasPermission("view_auth") && (
               <Button
                 variant="outline"
                 className="w-full justify-start bg-transparent"
@@ -436,7 +442,7 @@ export default function DashboardComponent() {
                 <Users className="mr-2 h-4 w-4" />
                 Administrar Usuarios
               </Button>
-            </VisibleByRole>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -1,18 +1,17 @@
 // services/userService.js
-export const createUser = async (userData) => {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include", // 👈 Esto incluye cookies en la petición
-    body: JSON.stringify(userData),
+import axiosInstance from './axiosInstance';
+
+export const createUser = async (params= {}) => {
+  const response = await axiosInstance.post('/users', params, {
+    withCredentials: true,
   });
+  return response.data;
+};
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "Error al crear usuario");
-  }
-
-  return await response.json();
+export const getUsers = async (page = 1, limit = 15) => {
+  const response = await axiosInstance.get('/users', {
+    params: { page, limit },
+    withCredentials: true,
+  });
+  return response.data;
 };

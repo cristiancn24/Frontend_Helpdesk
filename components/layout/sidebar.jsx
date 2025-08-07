@@ -4,52 +4,27 @@ import { Button } from "@/components/ui/button"
 import { LayoutDashboard, Ticket, HelpCircle, Settings, Shield } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useRole } from "@/context/RoleContext"
+import { useAuth } from "@/context/AuthContext"
 
 export default function Sidebar() {
   const pathname = usePathname()
-  const { role } = useRole()
+  const { hasPermission, user } = useAuth()
 
-  // Definimos las rutas
+  const ticketsPath = user?.role_id === 5 ? "/tickets-asignador" : "/tickets";
+
+  // Menú con permisos requeridos
   const menuItems = [
-    {
-      href: "/dashboard",
-      icon: LayoutDashboard,
-      label: "Dashboard",
-    },
-    {
-      href: role === 3 ? "/tickets-supervisor" : "/tickets",
-      icon: Ticket,
-      label: "Tickets",
-    },
-    {
-      href: "/pool",
-      icon: Ticket,
-      label: "Pool Tickets",
-      roleRequired: [1, 2, 11],
-    },
-    {
-      href: "/faq",
-      icon: HelpCircle,
-      label: "Preguntas Frecuentes",
-    },
-    {
-      href: "/auth",
-      icon: Shield,
-      label: "Autenticación",
-      roleRequired: [1], // Solo visible para admin
-    },
-    {
-      href: "/settings",
-      icon: Settings,
-      label: "Configuración",
-      roleRequired: [1, 2],
-    },
+    { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { href: ticketsPath, icon: Ticket, label: "Tickets", permissionRequired: "view_tickets" },
+    { href: "/pool", icon: Ticket, label: "Pool Tickets", permissionRequired: "view_pool_tickets" },
+    { href: "/faq", icon: HelpCircle, label: "Preguntas Frecuentes" },
+    { href: "/auth", icon: Shield, label: "Autenticación", permissionRequired: "view_auth" },
+    { href: "/settings", icon: Settings, label: "Configuración", permissionRequired: "view_config" },
   ]
 
-  // Filtrar items por rol si es necesario
+  // Filtrar por permisos si se requiere
   const filteredItems = menuItems.filter((item) => {
-    if (item.roleRequired && !item.roleRequired.includes(role)) return false
+    if (item.permissionRequired && !hasPermission(item.permissionRequired)) return false
     return true
   })
 
@@ -69,7 +44,9 @@ export default function Sidebar() {
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={`w-full justify-start mb-1 ${
-                    isActive ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "text-gray-600 hover:text-gray-900"
+                    isActive
+                      ? "bg-cyan-500 hover:bg-cyan-600 text-white"
+                      : "text-gray-600 hover:text-gray-900"
                   }`}
                 >
                   <Icon className="mr-3 h-4 w-4" />

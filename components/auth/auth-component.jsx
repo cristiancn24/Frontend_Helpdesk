@@ -12,10 +12,17 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Edit, Trash2, MoreHorizontal, Users, Shield, Key, UserCheck } from "lucide-react"
+import { Plus, Edit, Trash2, MoreHorizontal, Users, Shield, Key, UserCheck, ChevronLeft, ChevronRight } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
 import axios from "axios"
 import axiosInstance from "@/services/axiosInstance"
+import { createUser, getUsers } from "@/services/userService";
+import { toast } from "react-toastify"
+import { getPermissions } from "@/services/permissionService"; 
+import { createRole, getRolePermissions, getRolesWithPermissions, updateRolePermissions } from "@/services/roleService"
+import { createPermission } from "@/services/permissionService"
+import { useAuth } from "@/context/AuthContext"
+
 
 export default function AuthComponent() {
   const [activeSection, setActiveSection] = useState("users")
@@ -39,6 +46,60 @@ export default function AuthComponent() {
   const [roles, setRoles] = useState([])
   const [departments, setDepartments] = useState([])
   const [offices, setOffices] = useState([])
+  const [users, setUsers] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 15;
+  const [permissions, setPermissions] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+
+  const fetchPermissions = async (page = 1) => {
+    try {
+      const data = await getPermissions();
+      setPermissions(data); // Asumiendo que los permisos están en `data.permissions`
+    } catch (error) {
+      console.error("Error al cargar los permisos:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPermissions(); // Llama a la función para obtener los permisos al cargar el componente
+  }, []);
+
+  const fetchRolesWithPermissions = async () => {
+  try {
+    const data = await getRolesWithPermissions();
+    setAssignments(data);
+  } catch (error) {
+    console.error("Error al cargar roles con permisos:", error);
+  }
+};
+
+useEffect(() => {
+  if (activeSection === "assignments") {
+    fetchRolesWithPermissions();
+  }
+}, [activeSection]);
+
+
+  const fetchUsers = async (page = 1) => {
+  try {
+    const data = await getUsers(page, itemsPerPage);
+    console.log("Usuarios desde userService:", data); // ✅ DEBUG
+
+    setUsers(data.data);          // asegúrate que `data.data` es un array
+    setCurrentPage(data.page);
+    setTotalPages(data.totalPages);
+  } catch (error) {
+    console.error("Error al obtener usuarios desde el servicio:", error);
+  }
+};
+
+
+  useEffect(() => {
+    fetchUsers(currentPage);
+  }, [currentPage]);
+
 
 useEffect(() => {
   const fetchData = async () => {
@@ -59,188 +120,7 @@ useEffect(() => {
 
   fetchData()
 }, [])
-  // Datos de ejemplo para cada sección
-  const authData = {
-    users: [
-      {
-        id: 1,
-        name: "Juan Pérez",
-        email: "juan.perez@empresa.com",
-        role: "Administrador",
-        status: "Activo",
-        createdAt: "2024-01-01",
-      },
-      {
-        id: 2,
-        name: "María García",
-        email: "maria.garcia@empresa.com",
-        role: "Técnico Senior",
-        status: "Activo",
-        createdAt: "2024-01-02",
-      },
-      {
-        id: 3,
-        name: "Carlos López",
-        email: "carlos.lopez@empresa.com",
-        role: "Técnico",
-        status: "Activo",
-        createdAt: "2024-01-03",
-      },
-      {
-        id: 4,
-        name: "Ana Martínez",
-        email: "ana.martinez@empresa.com",
-        role: "Usuario",
-        status: "Inactivo",
-        createdAt: "2024-01-04",
-      },
-    ],
-    roles: [
-      {
-        id: 1,
-        name: "Administrador",
-        userCount: 1,
-      },
-      {
-        id: 2,
-        name: "Técnico Senior",
-        userCount: 1,
-      },
-      {
-        id: 3,
-        name: "Técnico",
-        userCount: 1,
-      },
-      {
-        id: 4,
-        name: "Usuario",
-        userCount: 1,
-      },
-    ],
-    permissions: [
-      {
-        id: 1,
-        name: "create",
-        description: "Crear nuevos tickets y elementos",
-        status: "Activo",
-      },
-      {
-        id: 2,
-        name: "read",
-        description: "Ver tickets y información del sistema",
-        status: "Activo",
-      },
-      {
-        id: 3,
-        name: "update",
-        description: "Editar tickets existentes",
-        status: "Activo",
-      },
-      {
-        id: 4,
-        name: "delete",
-        description: "Eliminar tickets y elementos",
-        status: "Activo",
-      },
-      {
-        id: 5,
-        name: "assign",
-        description: "Asignar tickets a técnicos",
-        status: "Activo",
-      },
-      {
-        id: 6,
-        name: "admin",
-        description: "Administración completa del sistema",
-        status: "Activo",
-      },
-      {
-        id: 7,
-        name: "reports",
-        description: "Generar y ver reportes",
-        status: "Inactivo",
-      },
-      {
-        id: 8,
-        name: "settings",
-        description: "Modificar configuraciones del sistema",
-        status: "Activo",
-      },
-    ],
-    assignments: [
-      {
-        id: 1,
-        roleName: "Administrador",
-        userCount: 1,
-        permissions: {
-          create: true,
-          read: true,
-          update: true,
-          delete: true,
-          assign: true,
-          admin: true,
-          reports: true,
-          settings: true,
-        },
-      },
-      {
-        id: 2,
-        roleName: "Técnico Senior",
-        userCount: 1,
-        permissions: {
-          create: true,
-          read: true,
-          update: true,
-          delete: false,
-          assign: true,
-          admin: false,
-          reports: true,
-          settings: false,
-        },
-      },
-      {
-        id: 3,
-        roleName: "Técnico",
-        userCount: 1,
-        permissions: {
-          create: false,
-          read: true,
-          update: true,
-          delete: false,
-          assign: false,
-          admin: false,
-          reports: false,
-          settings: false,
-        },
-      },
-      {
-        id: 4,
-        roleName: "Usuario",
-        userCount: 1,
-        permissions: {
-          create: true,
-          read: true,
-          update: false,
-          delete: false,
-          assign: false,
-          admin: false,
-          reports: false,
-          settings: false,
-        },
-      },
-    ],
-  }
 
-  const allPermissions = [
-    { name: "create", description: "Crear nuevos tickets y elementos" },
-    { name: "read", description: "Ver tickets y información del sistema" },
-    { name: "update", description: "Editar tickets existentes" },
-    { name: "delete", description: "Eliminar tickets y elementos" },
-    { name: "assign", description: "Asignar tickets a técnicos" },
-    { name: "admin", description: "Administración completa del sistema" },
-    { name: "reports", description: "Generar y ver reportes" },
-    { name: "settings", description: "Modificar configuraciones del sistema" },
-  ]
 
   const sections = [
     {
@@ -274,15 +154,27 @@ useEffect(() => {
   ]
 
   const getCurrentData = () => {
-    return authData[activeSection] || []
+  switch (activeSection) {
+    case "users":
+      return users;
+    case "roles":
+      return roles;
+    case "permissions":
+      return permissions;
+    case "assignments":
+      return assignments;
+    default:
+      return [];
   }
+};
+
 
   const getCurrentSection = () => {
     return sections.find((section) => section.id === activeSection)
   }
 
   const getStatusBadge = (status) => {
-    return status === "Activo"
+    return status === "Activo" || status === "Activado"
       ? "bg-green-100 text-green-800 hover:bg-green-100"
       : "bg-gray-100 text-gray-800 hover:bg-gray-100"
   }
@@ -290,65 +182,114 @@ useEffect(() => {
   
 
   const handleAddItem = async (e) => {
-  e.preventDefault()
+  e.preventDefault();
 
-  if (activeSection === "users") {
-    if (newItemForm.password !== newItemForm.confirmPassword) {
-      alert("Las contraseñas no coinciden")
-      return
-    }
-
-    if (newItemForm.password.length < 8) {
-      alert("La contraseña debe tener al menos 8 caracteres")
-      return
-    }
-
-    try {
-      const response = await fetch("/api/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        credentials: "include", // importante para enviar cookies (token JWT)
-        body: JSON.stringify({
-          first_name: newItemForm.name,
-          last_name: newItemForm.lastname,
-          email: newItemForm.email,
-          password: newItemForm.password,
-          role_id: parseInt(newItemForm.role),
-          office_id: 1, // Ajusta esto según tu lógica
-          department_id: 1 // Ajusta esto también
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || "Error al crear usuario")
+  try {
+    if (activeSection === "users") {
+      if (newItemForm.password !== newItemForm.confirmPassword) {
+        alert("Las contraseñas no coinciden");
+        return;
       }
 
-      alert("Usuario creado correctamente")
-      setIsAddModalOpen(false)
+      if (newItemForm.password.length < 8) {
+        alert("La contraseña debe tener al menos 8 caracteres");
+        return;
+      }
 
-    } catch (error) {
-      console.error("Error al crear usuario:", error.message)
-      alert(error.message)
+      const newUserData = {
+        first_name: newItemForm.name,
+        last_name: newItemForm.lastname,
+        email: newItemForm.email,
+        password: newItemForm.password,
+        role_id: parseInt(newItemForm.role),
+        office_id: parseInt(newItemForm.office),
+        department_id: parseInt(newItemForm.department),
+        activated: "active",
+      };
+
+      await createUser(newUserData);
+
+      toast.success("Usuario creado correctamente", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+
+      setIsAddModalOpen(false);
+      await fetchUsers();
+
+      setNewItemForm({
+        name: "",
+        lastname: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+        office: "",
+        department: "",
+        role: "",
+        description: "",
+        status: "Activo",
+      });
+    } 
+    
+    else if (activeSection === "roles") {
+      await createRole(newItemForm.name);
+
+      toast.success("Rol creado correctamente", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+
+      setIsAddModalOpen(false);
+      if (typeof fetchRoles === "function") {
+        await fetchRoles();
+      }
+
+      setNewItemForm({
+        name: "",
+        lastname: "",
+        email: "",
+        password: "",
+        confirmPassword: "",
+        office: "",
+        department: "",
+        role: "",
+        description: "",
+        status: "Activo",
+      });
+    } 
+    
+    else if (activeSection === "permissions") {
+      const newPermissionData = {
+        name: newItemForm.name,
+        description: newItemForm.description,
+        status: newItemForm.status,
+      };
+
+      await createPermission(newPermissionData);
+
+      toast.success("Permiso creado correctamente", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+
+      setIsAddModalOpen(false);
+      await fetchPermissions();
+
+      setNewItemForm({
+        name: "",
+        description: "",
+        status: "Activado",
+      });
     }
+  } catch (error) {
+    console.error(`Error al crear ${activeSection}:`, error);
+    toast.error(error.response?.data?.error || "Error desconocido", {
+      position: "top-center",
+      autoClose: 2000,
+    });
   }
+};
 
-  setNewItemForm({
-    name: "",
-    lastname: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    office: "",
-    department: "",
-    role: "",
-    description: "",
-    status: "Activo",
-  })
-}
 
 
   const handleFormChange = (field, value) => {
@@ -358,11 +299,23 @@ useEffect(() => {
     }))
   }
 
-  const handleEditPermissions = (role) => {
-    setSelectedRole(role)
-    setRolePermissions(role.permissions)
-    setIsEditPermissionsOpen(true)
+  const handleEditPermissions = async (role) => {
+  try {
+    const rolePerms = await getRolePermissions(role.id);
+
+    // Convertimos a objeto {permName: true/false}
+    const permState = {};
+    permissions.forEach((p) => {
+      permState[p.name] = rolePerms.some((rp) => rp.name === p.name);
+    });
+
+    setSelectedRole(role);
+    setRolePermissions(permState);
+    setIsEditPermissionsOpen(true);
+  } catch (error) {
+    console.error("Error al obtener permisos del rol:", error);
   }
+}
 
   const handlePermissionToggle = (permissionName, isActive) => {
     setRolePermissions((prev) => ({
@@ -371,13 +324,27 @@ useEffect(() => {
     }))
   }
 
-  const handleSavePermissions = () => {
-    console.log(`Guardando permisos para ${selectedRole.roleName}:`, rolePermissions)
-    setIsEditPermissionsOpen(false)
-    setSelectedRole(null)
-    setRolePermissions({})
-    alert("Permisos actualizados exitosamente")
+  const handleSavePermissions = async () => {
+  try {
+    const selectedPermissions = Object.entries(rolePermissions)
+      .filter(([_, isActive]) => isActive)
+      .map(([permName]) => {
+        const perm = permissions.find(p => p.name === permName);
+        return perm?.id;
+      })
+      .filter(Boolean);
+
+    await updateRolePermissions(selectedRole.id, selectedPermissions);
+
+    toast.success("Permisos actualizados correctamente", { autoClose: 2000 });
+    setIsEditPermissionsOpen(false);
+    fetchRolesWithPermissions(); // recargar tabla
+  } catch (error) {
+    console.error("Error al actualizar permisos:", error);
+    toast.error("No se pudieron actualizar los permisos", { autoClose: 2000 });
   }
+};
+
 
   const renderTableContent = () => {
     switch (activeSection) {
@@ -396,16 +363,19 @@ useEffect(() => {
             <TableBody>
               {getCurrentData().map((user) => (
                 <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell className="font-medium">{`${user.first_name} ${user.last_name}`}</TableCell>
                   <TableCell className="text-gray-600">{user.email}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                      {user.role}
+                      {user.roles?.name || "Sin rol"}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className={getStatusBadge(user.status)}>
-                      {user.status}
+                    <Badge
+                      variant="secondary"
+                      className={getStatusBadge(user.activated === "active" ? "Activo" : "Inactivo")}
+                    >
+                      {user.activated === "active" ? "Activo" : "Inactivo"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
@@ -432,6 +402,7 @@ useEffect(() => {
             </TableBody>
           </Table>
         )
+        
 
       case "roles":
         return (
@@ -489,7 +460,7 @@ useEffect(() => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {getCurrentData().map((permission) => (
+              {Array.isArray(getCurrentData()) && getCurrentData().map((permission) => (
                 <TableRow key={permission.id}>
                   <TableCell className="font-medium font-mono">{permission.name}</TableCell>
                   <TableCell className="text-gray-600">{permission.description}</TableCell>
@@ -535,7 +506,7 @@ useEffect(() => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {getCurrentData().map((assignment) => (
+              {assignments.map((assignment) => (
                 <TableRow key={assignment.id}>
                   <TableCell className="font-medium">{assignment.roleName}</TableCell>
                   <TableCell>
@@ -767,16 +738,16 @@ useEffect(() => {
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Activo">
+                  <SelectItem value="Activado">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                      Activo
+                      Activado
                     </div>
                   </SelectItem>
-                  <SelectItem value="Inactivo">
+                  <SelectItem value="Pendiente">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-gray-500"></div>
-                      Inactivo
+                      Pendiente
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -889,11 +860,47 @@ useEffect(() => {
           <CardContent>
             {renderTableContent()}
 
+            <div className="flex items-center justify-center mt-6 space-x-2">
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+    disabled={currentPage === 1}
+  >
+    <ChevronLeft className="h-4 w-4 mr-1" />
+    Anterior
+  </Button>
+
+  {Array.from({ length: totalPages }, (_, i) => (
+    <Button
+      key={i}
+      size="sm"
+      className={currentPage === i + 1 ? "bg-cyan-500 text-white hover:bg-cyan-600" : ""}
+      variant="outline"
+      onClick={() => setCurrentPage(i + 1)}
+    >
+      {i + 1}
+    </Button>
+  ))}
+
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+    disabled={currentPage === totalPages}
+  >
+    Siguiente
+    <ChevronRight className="h-4 w-4 ml-1" />
+  </Button>
+</div>
+
+
+
             {/* Estadísticas de la sección */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <div className="grid grid-cols-1 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-cyan-600">{getCurrentData().length}</p>
+                  <p className="text-2xl font-bold text-cyan-600">{Array.isArray(getCurrentData()) && getCurrentData().length}</p>
                   <p className="text-sm text-gray-600">Total de elementos</p>
                 </div>
               </div>
@@ -909,7 +916,7 @@ useEffect(() => {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="grid gap-4">
-                {allPermissions.map((permission) => (
+                {permissions.map((permission) => (
                   <div key={permission.name} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
                       <h4 className="font-medium font-mono">{permission.name}</h4>

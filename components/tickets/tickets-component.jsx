@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
 import TicketEditAndReassign from "@/components/tickets/ticket-edit-reasign-component"
 import VisibleByRole from "../VisibleByRole"
+import { useAuth } from "@/context/AuthContext"
 
 export default function TicketsComponent() {
   const [editTicket, setEditTicket] = useState(null)

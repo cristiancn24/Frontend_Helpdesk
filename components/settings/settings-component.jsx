@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Plus, Edit, Trash2, MoreHorizontal, Building, Users, SettingsIcon } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
+import { getOffices, createOffice } from "@/services/officeService"
+import { getDepartments, createDepartment } from "@/services/departmentsService"
+import { getCategories, createCategory } from "@/services/categoryService"
+import { toast } from "react-toastify";
 
 export default function SettingsComponent() {
   const [activeSection, setActiveSection] = useState("services")
@@ -20,30 +24,10 @@ export default function SettingsComponent() {
     code: "",
   })
 
-  // Datos de ejemplo para cada sección
-  const settingsData = {
-    services: [
-      { id: 1, name: "Soporte Técnico", description: "Asistencia técnica general", code: "ST001", status: "Activo" },
-      { id: 2, name: "Mantenimiento", description: "Servicios de mantenimiento", code: "MT002", status: "Activo" },
-      { id: 3, name: "Instalación", description: "Instalación de equipos", code: "IN003", status: "Activo" },
-      { id: 4, name: "Capacitación", description: "Entrenamiento de usuarios", code: "CP004", status: "Inactivo" },
-    ],
-    offices: [
-      { id: 1, name: "Sucursal Centro", description: "Oficina principal", code: "SC001", status: "Activo" },
-      { id: 2, name: "Sucursal Norte", description: "Sucursal zona norte", code: "SN002", status: "Activo" },
-      { id: 3, name: "Sucursal Sur", description: "Sucursal zona sur", code: "SS003", status: "Activo" },
-      { id: 4, name: "Sucursal Este", description: "Sucursal zona este", code: "SE004", status: "Activo" },
-      { id: 5, name: "Sucursal Oeste", description: "Sucursal zona oeste", code: "SO005", status: "Inactivo" },
-    ],
-    departments: [
-      { id: 1, name: "IT Department", description: "Tecnología de la información", code: "IT001", status: "Activo" },
-      { id: 2, name: "Customer Service", description: "Atención al cliente", code: "CS001", status: "Activo" },
-      { id: 3, name: "Development", description: "Desarrollo de software", code: "DV001", status: "Activo" },
-      { id: 4, name: "QA Department", description: "Control de calidad", code: "QA001", status: "Activo" },
-      { id: 5, name: "Security", description: "Seguridad informática", code: "SC001", status: "Activo" },
-      { id: 6, name: "Human Resources", description: "Recursos humanos", code: "HR001", status: "Inactivo" },
-    ],
-  }
+  const [offices, setOffices] = useState([])
+  const [departments, setDepartments] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(false)
 
   const sections = [
     {
@@ -69,24 +53,138 @@ export default function SettingsComponent() {
     },
   ]
 
+    const fetchOffices = async () => {
+    try {
+      setLoading(true)
+      const data = await getOffices()
+      setOffices(data)
+    } catch (error) {
+      console.error("Error fetching offices:", error)
+      toast.error("Error al obtener oficinas")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      setLoading(true)
+      const data = await getCategories()
+      setCategories(data)
+    } catch (error) {
+      console.error("Error fetching categories:", error)
+      toast.error("Error al obtener categorías")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      setLoading(true)
+      const data = await getDepartments()
+      setDepartments(data)
+    } catch (error) {
+      console.error("Error fetching departments:", error)
+      toast.error("Error al obtener departamentos")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  useEffect(() => {
+    if (activeSection === "offices") {
+      fetchOffices()
+    } else if (activeSection === "departments") {
+      fetchDepartments()
+    } else if (activeSection === "services") {
+      fetchCategories()
+    }
+  }, [activeSection])
+
+
+
   const getCurrentData = () => {
-    return settingsData[activeSection] || []
+    if (activeSection === "offices") return offices
+    if (activeSection === "departments") return departments
+    if (activeSection === "services") return categories
+    return []
   }
 
   const getCurrentSection = () => {
     return sections.find((section) => section.id === activeSection)
   }
 
-  const handleAddItem = (e) => {
+  const handleAddItem = async (e) => {
     e.preventDefault()
-    // Aquí iría la lógica para agregar el nuevo elemento
-    console.log("Nuevo elemento:", newItemForm, "Sección:", activeSection)
+    try {
+    if (activeSection === "offices") {
+      const newOfficeData = {
+        name: newItemForm.name,
+        id: newItemForm.id,
+      };
 
-    // Resetear formulario y cerrar modal
-    setNewItemForm({ name: "", description: "", code: "" })
-    setIsAddModalOpen(false)
+      await createOffice(newOfficeData);
 
-    alert("Elemento agregado exitosamente")
+      toast.success("Oficina creada correctamente", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+
+      setIsAddModalOpen(false);
+      await fetchOffices();
+
+      setNewItemForm({
+        name: "",
+        id: "",
+      });
+    } else if (activeSection === "departments") {
+      const newDepartmentData = {
+        name: newItemForm.name,
+      };
+      await createDepartment(newDepartmentData);
+
+      toast.success("Departamento creado correctamente", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+      setIsAddModalOpen(false);
+      await fetchDepartments();
+      setNewItemForm({
+        name: "",
+        id: "",
+      });
+    } else if (activeSection === "services") {
+      const newCategoryData = {
+        name: newItemForm.name,
+      };
+      await createCategory(newCategoryData);
+
+      toast.success("Categoría creada correctamente", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+      setIsAddModalOpen(false);
+      await fetchCategories();
+      setNewItemForm({
+        name: "",
+        id: "",
+      });
+    }
+    setNewItemForm({
+      name: "",
+      id: "",
+    });
+      
+
+    } catch (error) {
+      console.error("Error al agregar el elemento:", error);
+      toast.error("Error al crear la oficina", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+    }
   }
 
   const handleFormChange = (field, value) => {
@@ -208,17 +306,15 @@ export default function SettingsComponent() {
                 <TableRow>
                   <TableHead>Código</TableHead>
                   <TableHead>Nombre</TableHead>
-                  <TableHead>Descripción</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
+                  <TableHead className="w-[120px] text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {getCurrentData().map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-mono text-sm">{item.code}</TableCell>
+                    <TableCell className="font-mono text-sm">{item.id}</TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-gray-600">{item.description}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="w-[120px] text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
