@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo, use } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { getTickets as fetchTickets } from "@/services/ticketService"
 import {
   Plus,
   Search,
@@ -28,15 +29,23 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
 import TicketEditAndReassign from "@/components/tickets/ticket-edit-reasign-component"
-import VisibleByRole from "../VisibleByRole"
 import { useAuth } from "@/context/AuthContext"
 
 export default function TicketsComponent() {
+  const [tickets, setTickets] = useState([])
+  const [page, setPage] = useState(1)
+  const [limit] = useState(15)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [search, setSearch] = useState("")
   const [editTicket, setEditTicket] = useState(null)
   const [reassignTicketId, setReassignTicketId] = useState(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
+  const [showLatest, setShowLatest] = useState(false)
   const [newTicketForm, setNewTicketForm] = useState({
     oficina: "",
     asunto: "",
@@ -45,68 +54,65 @@ export default function TicketsComponent() {
   })
   const [attachedFiles, setAttachedFiles] = useState([])
 
-  const tickets = [
-    {
-      id: "#1234",
-      title: "Login Issue",
-      status: "Open",
-      priority: "High",
-      assignee: "Sarah Wilson",
-      category: "Technical Support",
-      department: "IT Department",
-      branch: "Sucursal Centro",
-      created: "2024-01-15",
-      updated: "1 hour ago",
-    },
-    {
-      id: "#1233",
-      title: "Password Reset",
-      status: "Resolved",
-      priority: "Medium",
-      assignee: "Mike Johnson",
-      category: "Account Issues",
-      department: "Customer Service",
-      branch: "Sucursal Norte",
-      created: "2024-01-14",
-      updated: "2 hours ago",
-    },
-    {
-      id: "#1232",
-      title: "Feature Request",
-      status: "In Progress",
-      priority: "Low",
-      assignee: "Alex Chen",
-      category: "Enhancement",
-      department: "Development",
-      branch: "Sucursal Sur",
-      created: "2024-01-13",
-      updated: "3 hours ago",
-    },
-    {
-      id: "#1231",
-      title: "Bug Report - Dashboard",
-      status: "Open",
-      priority: "High",
-      assignee: "Sarah Wilson",
-      category: "Bug Report",
-      department: "QA Department",
-      branch: "Sucursal Este",
-      created: "2024-01-12",
-      updated: "5 hours ago",
-    },
-    {
-      id: "#1230",
-      title: "Account Suspension",
-      status: "Closed",
-      priority: "Medium",
-      assignee: "Mike Johnson",
-      category: "Account Issues",
-      department: "Security",
-      branch: "Sucursal Centro",
-      created: "2024-01-11",
-      updated: "12 hours ago",
-    },
-  ]
+  useEffect(() => { setPage(1); }, [showLatest]);
+
+  // Ir a una página válida (1..totalPages)
+const goToPage = (p) => {
+  setPage(Math.max(1, Math.min(p, totalPages)));
+};
+
+// Rango "Mostrando X a Y de Z"
+const start = (page - 1) * limit + 1;
+const end = Math.min(page * limit, totalItems);
+
+
+  const queryParams = useMemo(() => {
+    const params = {
+      page,
+      limit,
+      latest: 1,
+      sortBy: "created_at",
+      order: "desc",
+    };
+
+    if (search?.trim()) params.q = search.trim();
+
+    // ejemplo: si guardas filtros en activeFilters
+    if (activeFilters.statusId) params.statusId = activeFilters.statusId;           // número
+    if (activeFilters.priority) params.priority = activeFilters.priority;           // 'High'|'Medium'|'Low'|'Urgent'
+    if (activeFilters.categoryId) params.categoryId = activeFilters.categoryId;     // número
+    if (activeFilters.officeId) params.officeId = activeFilters.officeId;           // número
+    if (activeFilters.departmentId) params.departmentId = activeFilters.departmentId;
+    if (activeFilters.technicianId) params.technicianId = activeFilters.technicianId;
+    if (activeFilters.dateFrom) params.dateFrom = activeFilters.dateFrom;           // 'YYYY-MM-DD'
+    if (activeFilters.dateTo) params.dateTo = activeFilters.dateTo;                 // 'YYYY-MM-DD'
+
+    return params;
+  }, [page, limit, activeFilters, search, showLatest]);
+
+  const loadTickets = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetchTickets(queryParams);
+      // res.data viene ya en el shape de tu tabla (id '#1234', title, status, etc.)
+      setTickets(res.data);
+      setTotalPages(res.totalPages);
+      setTotalItems(res.totalItems);
+    } catch (e) {
+      console.error(e);
+      setError("No se pudieron cargar los tickets");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParams]);
+
+  
 
   const getStatusBadge = (status) => {
     const statusConfig = {
@@ -249,7 +255,7 @@ export default function TicketsComponent() {
             <div className="flex flex-col md:flex-row gap-4 items-center flex-1">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input placeholder="Buscar tickets..." className="pl-10" />
+                <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar tickets..." className="pl-10" />
               </div>
 
               {/* Filters Button */}
@@ -272,7 +278,6 @@ export default function TicketsComponent() {
                   <div className="space-y-6 py-4">
                     {/* Primera fila de filtros */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <VisibleByRole roles={[1, 2]}>
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Técnico</label>
                         <Select defaultValue="all">
@@ -288,7 +293,6 @@ export default function TicketsComponent() {
                           </SelectContent>
                         </Select>
                       </div>
-                      </VisibleByRole>
 
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Estado</label>
@@ -306,7 +310,6 @@ export default function TicketsComponent() {
                         </Select>
                       </div>
 
-                      <VisibleByRole roles={[1, 2]}>
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Prioridad</label>
                         <Select defaultValue="all">
@@ -322,11 +325,9 @@ export default function TicketsComponent() {
                           </SelectContent>
                         </Select>
                       </div>
-                      </VisibleByRole>
                     </div>
 
                     {/* Segunda fila de filtros */}
-                    <VisibleByRole roles={[1, 2]}>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Categoría</label>
@@ -368,7 +369,6 @@ export default function TicketsComponent() {
                         </Select>
                       </div>
                     </div>
-                    </VisibleByRole>
 
 
                     {/* Filtros de fecha */}
@@ -639,8 +639,8 @@ export default function TicketsComponent() {
                 <TableHead>Prioridad</TableHead>
                 <TableHead>Técnico</TableHead>
                 <TableHead>Categoría</TableHead>
-                <TableHead>Sucursal</TableHead>
-                <TableHead>Creado</TableHead>
+                <TableHead>Oficina</TableHead>
+                <TableHead>Fecha creación</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -732,27 +732,49 @@ export default function TicketsComponent() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
-            <p className="text-sm text-gray-500">Mostrando 1 a 5 de 1,247 tickets</p>
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" disabled>
-                <ChevronLeft className="h-4 w-4" />
-                Anterior
-              </Button>
-              <Button variant="outline" size="sm" className="bg-cyan-500 text-white hover:bg-cyan-600">
-                1
-              </Button>
-              <Button variant="outline" size="sm">
-                2
-              </Button>
-              <Button variant="outline" size="sm">
-                3
-              </Button>
-              <Button variant="outline" size="sm">
-                <ChevronRight className="h-4 w-4" />
-                Siguiente
-              </Button>
-            </div>
-          </div>
+  <p className="text-sm text-gray-500">
+    {totalItems > 0
+      ? `Mostrando ${start} a ${end} de ${totalItems} tickets`
+      : 'Sin resultados'}
+  </p>
+
+  <div className="flex items-center space-x-2">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => goToPage(page - 1)}
+      disabled={page === 1 || loading}
+    >
+      <ChevronLeft className="h-4 w-4 mr-1" />
+      Anterior
+    </Button>
+
+    {/* Botones numerados (simple): muestra 1..totalPages */}
+    {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+      <Button
+        key={n}
+        variant="outline"
+        size="sm"
+        onClick={() => goToPage(n)}
+        className={page === n ? "bg-cyan-500 text-white hover:bg-cyan-600" : ""}
+        disabled={loading}
+      >
+        {n}
+      </Button>
+    ))}
+
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => goToPage(page - 0 + 1)}
+      disabled={page === totalPages || loading}
+    >
+      Siguiente
+      <ChevronRight className="h-4 w-4 ml-1" />
+    </Button>
+  </div>
+</div>
+
         </CardContent>
       </Card>
     </MainLayout>
