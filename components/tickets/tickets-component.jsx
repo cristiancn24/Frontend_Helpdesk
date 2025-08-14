@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, use } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { getTickets as fetchTickets } from "@/services/ticketService"
+import { getTickets as fetchTickets, getFilterOptions, createTicket } from "@/services/ticketService"
 import {
   Plus,
   Search,
@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
 import TicketEditAndReassign from "@/components/tickets/ticket-edit-reasign-component"
 import { useAuth } from "@/context/AuthContext"
+import { toast } from "react-toastify"
 
 export default function TicketsComponent() {
   const [tickets, setTickets] = useState([])
@@ -45,16 +46,51 @@ export default function TicketsComponent() {
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
   const [showLatest, setShowLatest] = useState(false)
   const [newTicketForm, setNewTicketForm] = useState({
-    oficina: "",
+    oficinaId: "",
     asunto: "",
-    prioridad: "",
     descripcion: "",
   })
   const [attachedFiles, setAttachedFiles] = useState([])
+  const [filterOptions, setFilterOptions] = useState({
+  technicians: [],
+  statuses: [],
+  priorities: [],
+  categories: [],
+  offices: [],
+});
+const ALL = "__all__";
 
-  useEffect(() => { setPage(1); }, [showLatest]);
+// Ejemplos de onValueChange para cada Select:
+const setFilter = (key, value) =>
+  setActiveFilters(prev => ({
+    ...prev,
+    [key]: (value === ALL || value === "" || value == null) ? null : value
+  }));
+
+useEffect(() => {
+  let cancel = false;
+
+  async function loadFilterOptions() {
+    try {
+      const data = await getFilterOptions(); // { technicians, statuses, priorities, categories, offices }
+      if (!cancel) setFilterOptions(data);
+    } catch (err) {
+      console.error("Error cargando filtros:", err);
+    }
+  }
+
+  loadFilterOptions();
+  return () => { cancel = true; };
+}, []);
+
+
+
+ useEffect(() => {
+  setPage(1);
+}, [activeFilters, search]);
 
   // Ir a una página válida (1..totalPages)
 const goToPage = (p) => {
@@ -67,28 +103,43 @@ const end = Math.min(page * limit, totalItems);
 
 
   const queryParams = useMemo(() => {
-    const params = {
-      page,
-      limit,
-      latest: 1,
-      sortBy: "created_at",
-      order: "desc",
-    };
+  const {
+    statusId, categoryId, officeId, departmentId,
+    technicianId, dateFrom, dateTo, priority
+  } = activeFilters;
 
-    if (search?.trim()) params.q = search.trim();
+  const hasStrongFilter =
+    (priority && priority !== ALL) ||
+    statusId || categoryId || officeId || departmentId ||
+    technicianId || dateFrom || dateTo || (search && search.trim());
 
-    // ejemplo: si guardas filtros en activeFilters
-    if (activeFilters.statusId) params.statusId = activeFilters.statusId;           // número
-    if (activeFilters.priority) params.priority = activeFilters.priority;           // 'High'|'Medium'|'Low'|'Urgent'
-    if (activeFilters.categoryId) params.categoryId = activeFilters.categoryId;     // número
-    if (activeFilters.officeId) params.officeId = activeFilters.officeId;           // número
-    if (activeFilters.departmentId) params.departmentId = activeFilters.departmentId;
-    if (activeFilters.technicianId) params.technicianId = activeFilters.technicianId;
-    if (activeFilters.dateFrom) params.dateFrom = activeFilters.dateFrom;           // 'YYYY-MM-DD'
-    if (activeFilters.dateTo) params.dateTo = activeFilters.dateTo;                 // 'YYYY-MM-DD'
+  const params = {
+    page,
+    limit,
+    sortBy: "created_at",
+    order: "desc",
+    ...(hasStrongFilter ? {} : { latest: 1 }), // 👈 solo latest si NO hay filtros
+  };
 
-    return params;
-  }, [page, limit, activeFilters, search, showLatest]);
+  if (search && search.trim()) params.q = search.trim();
+  if (statusId)     params.statusId = statusId;
+  if (categoryId)   params.categoryId = categoryId;
+  if (officeId)     params.officeId = officeId;
+  if (departmentId) params.departmentId = departmentId;
+  if (technicianId) params.technicianId = technicianId;
+  if (dateFrom)     params.dateFrom = dateFrom;
+  if (dateTo)       params.dateTo = dateTo;
+  if (priority && priority !== ALL) params.priority = priority; // 👈 importante
+
+  return params;
+}, [
+  page, limit, search,
+  activeFilters.statusId, activeFilters.categoryId, activeFilters.officeId,
+  activeFilters.departmentId, activeFilters.technicianId,
+  activeFilters.dateFrom, activeFilters.dateTo, activeFilters.priority
+]);
+
+
 
   const loadTickets = async () => {
     try {
@@ -114,28 +165,65 @@ const end = Math.min(page * limit, totalItems);
 
   
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      Open: "bg-orange-100 text-orange-800 hover:bg-orange-100",
-      "In Progress": "bg-blue-100 text-blue-800 hover:bg-blue-100",
-      Resolved: "bg-green-100 text-green-800 hover:bg-green-100",
-      Closed: "bg-gray-100 text-gray-800 hover:bg-gray-100",
-    }
-    return statusConfig[status] || "bg-gray-100 text-gray-800"
-  }
+  // Función para normalizar texto (quitar acentos, pasar a minúsculas)
+const normalizeText = (text) => {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .normalize("NFD") // separa acentos
+    .replace(/[\u0300-\u036f]/g, ""); // quita acentos
+};
 
-  const getPriorityBadge = (priority) => {
-    const priorityConfig = {
-      High: "bg-red-100 text-red-800 hover:bg-red-100",
-      Medium: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
-      Low: "bg-green-100 text-green-800 hover:bg-green-100",
-    }
-    return priorityConfig[priority] || "bg-gray-100 text-gray-800"
-  }
 
-  const getActiveFiltersCount = () => {
-    return Object.values(activeFilters).filter((value) => value && value !== "all").length
+
+// Mapea status normalizados a clases CSS
+const getStatusBadge = (status) => {
+  const normalized = normalizeText(status);
+
+  switch (normalized) {
+    case "abierto":
+    case "pendiente":
+      return "bg-blue-100 text-blue-800";
+    case "cerrado":
+    case "closed":
+      return "bg-gray-100 text-gray-800";
+    case "en progreso":
+    case "asignado":
+      return "bg-yellow-100 text-yellow-800";
+    case "resuelto":
+    case "resolved":
+      return "bg-green-100 text-green-800";
+    default:
+      return "bg-gray-200 text-gray-800";
   }
+};
+
+// Mapea prioridad normalizada a clases CSS
+const getPriorityBadge = (priority) => {
+  const normalized = normalizeText(priority);
+
+  switch (normalized) {
+    case "urgente":
+    case "urgent":
+      return "bg-red-100 text-red-800";
+    case "alta":
+    case "high":
+      return "bg-orange-100 text-orange-800";
+    case "media":
+    case "medium":
+      return "bg-yellow-100 text-yellow-800";
+    case "baja":
+    case "low":
+      return "bg-green-100 text-green-800";
+    default:
+      return "bg-gray-200 text-gray-800";
+  }
+};
+
+
+  const getActiveFiltersCount = () =>
+  Object.values(activeFilters).filter(v => v != null).length;
+
 
   const clearAllFilters = () => {
     setActiveFilters({})
@@ -176,18 +264,42 @@ const end = Math.min(page * limit, totalItems);
     return "📎"
   }
 
-  const handleNewTicketSubmit = (e) => {
+  const handleNewTicketSubmit = async (e) => {
     e.preventDefault()
+    const { oficinaId, asunto, descripcion } = newTicketForm;
 
     // Validación básica
-    if (!newTicketForm.oficina || !newTicketForm.asunto || !newTicketForm.prioridad || !newTicketForm.descripcion) {
-      alert("Por favor, completa todos los campos")
-      return
+    if (!oficinaId || !asunto?.trim() || !descripcion?.trim()) {
+      alert("Por favor, completa todos los campos");
+      return;
     }
 
     // Aquí iría la lógica para enviar el ticket al backend
-    console.log("Nuevo ticket:", newTicketForm)
-    console.log("Archivos adjuntos:", attachedFiles)
+    console.log("Nuevo ticket:", newTicketForm);
+    console.log("Archivos adjuntos:", attachedFiles);
+
+    const payload = {
+      subject: asunto.trim(),
+      comment: descripcion.trim(),
+      officeId: Number(oficinaId),
+      category_service_id: null,
+      office_support_to: 1,
+    };
+
+    try {
+      setIsCreating(true);
+      await createTicket(payload);
+      await loadTickets();
+      setNewTicketForm({ oficinaId: "", asunto: "", descripcion: "" });
+      setAttachedFiles([]);
+      setIsNewTicketOpen(false);
+      toast.success("Ticket creado exitosamente");
+    } catch (error) {
+      console.error("Error al crear ticket:", error);
+      toast.error(error?.error || "No se pudo crear el ticket");
+    } finally {
+      setIsCreating(false);
+    }
 
     // Resetear formulario y cerrar modal
     setNewTicketForm({
@@ -280,50 +392,51 @@ const end = Math.min(page * limit, totalItems);
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Técnico</label>
-                        <Select defaultValue="all">
+                        <Select value={activeFilters.technicianId ?? ""} onValueChange={(v) => setFilter("technicianId", v || null)}>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar técnico" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todos los técnicos</SelectItem>
-                            <SelectItem value="sarah">Sarah Wilson</SelectItem>
-                            <SelectItem value="mike">Mike Johnson</SelectItem>
-                            <SelectItem value="alex">Alex Chen</SelectItem>
-                            <SelectItem value="unassigned">Sin asignar</SelectItem>
+                            <SelectItem value={ALL}>Todos los técnicos</SelectItem>
+                            {filterOptions.technicians.map(t => (
+                              <SelectItem key={t.id} value={String(t.id)}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Estado</label>
-                        <Select defaultValue="all">
+                        <Select value={activeFilters.statusId ?? ""} onValueChange={(v) => setFilter("statusId", v || null)}>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar estado" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todos los estados</SelectItem>
-                            <SelectItem value="open">Abierto</SelectItem>
-                            <SelectItem value="in-progress">En progreso</SelectItem>
-                            <SelectItem value="resolved">Resuelto</SelectItem>
-                            <SelectItem value="closed">Cerrado</SelectItem>
+                            <SelectItem value={ALL}>Todos los estados</SelectItem>
+                            {filterOptions.statuses.map(s => (
+                              <SelectItem key={s.id} value={String(s.id)}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Prioridad</label>
-                        <Select defaultValue="all">
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar prioridad" />
-                          </SelectTrigger>
+                        <Select value={activeFilters.priority ?? ALL} onValueChange={(v) => setFilter("priority", v)}>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar prioridad" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todas las prioridades</SelectItem>
-                            <SelectItem value="high">Alta</SelectItem>
-                            <SelectItem value="medium">Media</SelectItem>
-                            <SelectItem value="low">Baja</SelectItem>
-                            <SelectItem value="urgent">Urgente</SelectItem>
+                            <SelectItem value={ALL}>Todas las prioridades</SelectItem>
+                            {filterOptions.priorities.map(p => (
+                              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
+
+
                       </div>
                     </div>
 
@@ -331,40 +444,34 @@ const end = Math.min(page * limit, totalItems);
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Categoría</label>
-                        <Select defaultValue="all">
+                        <Select value={activeFilters.categoryId ?? ""} onValueChange={(v) => setFilter("categoryId", v || null)}>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar categoría" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todas las categorías</SelectItem>
-                            <SelectItem value="technical">Technical Support</SelectItem>
-                            <SelectItem value="account">Account Issues</SelectItem>
-                            <SelectItem value="bug">Bug Report</SelectItem>
-                            <SelectItem value="enhancement">Enhancement</SelectItem>
-                            <SelectItem value="billing">Billing</SelectItem>
-                            <SelectItem value="general">General Inquiry</SelectItem>
+                            <SelectItem value={ALL}>Todas las categorías</SelectItem>
+                            {filterOptions.categories.map(c => (
+                              <SelectItem key={c.id} value={String(c.id)}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Sucursal/Departamento</label>
-                        <Select defaultValue="all">
+                        <Select value={activeFilters.officeId ?? ""} onValueChange={(v) => setFilter("officeId", v || null)}>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccionar ubicación" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="all">Todas las ubicaciones</SelectItem>
-                            <SelectItem value="centro">Sucursal Centro</SelectItem>
-                            <SelectItem value="norte">Sucursal Norte</SelectItem>
-                            <SelectItem value="sur">Sucursal Sur</SelectItem>
-                            <SelectItem value="este">Sucursal Este</SelectItem>
-                            <SelectItem value="oeste">Sucursal Oeste</SelectItem>
-                            <SelectItem value="it">IT Department</SelectItem>
-                            <SelectItem value="customer">Customer Service</SelectItem>
-                            <SelectItem value="development">Development</SelectItem>
-                            <SelectItem value="qa">QA Department</SelectItem>
-                            <SelectItem value="security">Security</SelectItem>
+                            <SelectItem value={ALL}>Todas las ubicaciones</SelectItem>
+                            {filterOptions.offices.map(o => (
+                              <SelectItem key={o.id} value={String(o.id)}>
+                                {o.name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -375,9 +482,9 @@ const end = Math.min(page * limit, totalItems);
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-2 block">Rango de Fechas</label>
                       <div className="flex gap-2 items-center">
-                        <Input type="date" className="flex-1" placeholder="Fecha desde" />
+                        <Input type="date" className="flex-1" placeholder="Fecha desde" value={activeFilters.dateFrom ?? ""} onChange={(e) => setFilter("dateFrom", e.target.value)} />
                         <span className="text-gray-500 text-sm">hasta</span>
-                        <Input type="date" className="flex-1" placeholder="Fecha hasta" />
+                        <Input type="date" className="flex-1" placeholder="Fecha hasta" value={activeFilters.dateTo ?? ""} onChange={(e) => setFilter("dateTo", e.target.value)} />
                       </div>
                     </div>
 
@@ -418,21 +525,14 @@ const end = Math.min(page * limit, totalItems);
                     <Label htmlFor="oficina" className="text-sm font-medium text-gray-700">
                       Oficina / Sucursal *
                     </Label>
-                    <Select value={newTicketForm.oficina} onValueChange={(value) => handleFormChange("oficina", value)}>
+                    <Select value={newTicketForm.oficinaId} onValueChange={(value) => handleFormChange("oficinaId", value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar oficina" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="centro">Sucursal Centro</SelectItem>
-                        <SelectItem value="norte">Sucursal Norte</SelectItem>
-                        <SelectItem value="sur">Sucursal Sur</SelectItem>
-                        <SelectItem value="este">Sucursal Este</SelectItem>
-                        <SelectItem value="oeste">Sucursal Oeste</SelectItem>
-                        <SelectItem value="it">IT Department</SelectItem>
-                        <SelectItem value="customer">Customer Service</SelectItem>
-                        <SelectItem value="development">Development</SelectItem>
-                        <SelectItem value="qa">QA Department</SelectItem>
-                        <SelectItem value="security">Security</SelectItem>
+                        {filterOptions.offices.map(o => (
+                          <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -451,47 +551,7 @@ const end = Math.min(page * limit, totalItems);
                       className="w-full"
                     />
                   </div>
-
-                  {/* Campo Prioridad */}
-                  <div className="space-y-2">
-                    <Label htmlFor="prioridad" className="text-sm font-medium text-gray-700">
-                      Prioridad *
-                    </Label>
-                    <Select
-                      value={newTicketForm.prioridad}
-                      onValueChange={(value) => handleFormChange("prioridad", value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar prioridad" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="baja">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            Baja
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="media">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                            Media
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="alta">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                            Alta
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="urgente">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-red-700"></div>
-                            Urgente
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  
 
                   {/* Campo Descripción */}
                   <div className="space-y-2">
@@ -577,9 +637,9 @@ const end = Math.min(page * limit, totalItems);
 
                   {/* Botones de acción */}
                   <div className="flex gap-3 pt-4 border-t">
-                    <Button type="submit" className="bg-cyan-500 hover:bg-cyan-600 text-white">
+                    <Button type="submit" disabled={isCreating} className="bg-cyan-500 hover:bg-cyan-600 text-white">
                       <Plus className="mr-2 h-4 w-4" />
-                      Crear Ticket
+                      {isCreating ? "Creando..." : "Crear Ticket"}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setIsNewTicketOpen(false)}>
                       Cancelar
@@ -596,7 +656,7 @@ const end = Math.min(page * limit, totalItems);
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-gray-600">Filtros activos:</span>
                 {Object.entries(activeFilters).map(([key, value]) =>
-                  value && value !== "all" ? (
+                  value && value !== ALL ? (
                     <Badge key={key} variant="secondary" className="bg-cyan-100 text-cyan-800">
                       {key}: {value}
                       <Button
@@ -685,7 +745,7 @@ const end = Math.min(page * limit, totalItems);
                   </TableCell>
                   <TableCell>
                     <div>
-                      <p className="text-sm font-medium">{ticket.branch}</p>
+                      <p className="text-sm font-medium">{ticket.createdBy}</p>
                       <p className="text-xs text-gray-500">{ticket.department}</p>
                     </div>
                   </TableCell>
