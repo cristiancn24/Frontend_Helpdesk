@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { getTickets as fetchTickets, getFilterOptions, createTicket } from "@/services/ticketService"
+import { getTickets as fetchTickets, getFilterOptions, createTicket, uploadTicketFiles } from "@/services/ticketService"
 import {
   Plus,
   Search,
@@ -265,41 +265,58 @@ const getPriorityBadge = (priority) => {
   }
 
   const handleNewTicketSubmit = async (e) => {
-    e.preventDefault()
-    const { oficinaId, asunto, descripcion } = newTicketForm;
+  e.preventDefault();
+  const { oficinaId, asunto, descripcion } = newTicketForm;
 
-    // Validación básica
-    if (!oficinaId || !asunto?.trim() || !descripcion?.trim()) {
-      alert("Por favor, completa todos los campos");
-      return;
+  if (!oficinaId || !asunto?.trim() || !descripcion?.trim()) {
+    toast.error("Por favor, completa todos los campos");
+    return;
+  }
+
+  const payload = {
+    subject: asunto.trim(),
+    comment: descripcion.trim(),
+    office_id: Number(oficinaId),      // 👈 usa office_id (lo que espera el backend)
+    category_service_id: null,
+    office_support_to: 1,
+  };
+
+  try {
+    setIsCreating(true);
+
+    // 1) Crear ticket
+    const created = await createTicket(payload);
+    const ticketId =
+      created?.id ??
+      created?.data?.id ??
+      created?.data?.data?.id; // robusto por si tu service envuelve data
+
+    if (!ticketId) {
+      throw new Error("No se pudo obtener el ID del ticket recién creado");
     }
 
-    // Aquí iría la lógica para enviar el ticket al backend
-    console.log("Nuevo ticket:", newTicketForm);
-    console.log("Archivos adjuntos:", attachedFiles);
-
-    const payload = {
-      subject: asunto.trim(),
-      comment: descripcion.trim(),
-      officeId: Number(oficinaId),
-      category_service_id: null,
-      office_support_to: 1,
-    };
-
-    try {
-      setIsCreating(true);
-      await createTicket(payload);
-      await loadTickets();
-      setNewTicketForm({ oficinaId: "", asunto: "", descripcion: "" });
-      setAttachedFiles([]);
-      setIsNewTicketOpen(false);
-      toast.success("Ticket creado exitosamente");
-    } catch (error) {
-      console.error("Error al crear ticket:", error);
-      toast.error(error?.error || "No se pudo crear el ticket");
-    } finally {
-      setIsCreating(false);
+    // 2) Subir adjuntos (si hay)
+    if (attachedFiles.length > 0) {
+      // pasa los File nativos (no los wrappers)
+      const onlyFiles = attachedFiles.map((f) => f.file);
+      await uploadTicketFiles(ticketId, onlyFiles);
+      toast.success(`Ticket #${ticketId} creado y ${onlyFiles.length} archivo(s) subido(s)`);
+    } else {
+      toast.success(`Ticket #${ticketId} creado`);
     }
+
+    // 3) Refrescar tabla y limpiar
+    await loadTickets();
+    setNewTicketForm({ oficinaId: "", asunto: "", descripcion: "" });
+    setAttachedFiles([]);
+    setIsNewTicketOpen(false);
+  } catch (error) {
+    console.error("Error al crear/subir archivos:", error);
+    toast.error(error?.message || "No se pudo crear el ticket o subir archivos");
+  } finally {
+    setIsCreating(false);
+  }
+
 
     // Resetear formulario y cerrar modal
     setNewTicketForm({
@@ -312,7 +329,7 @@ const getPriorityBadge = (priority) => {
     setIsNewTicketOpen(false)
 
     // Mostrar mensaje de éxito (puedes reemplazar con toast)
-    alert("Ticket creado exitosamente")
+    toast.success("Ticket creado exitosamente")
   }
 
   const handleFormChange = (field, value) => {
