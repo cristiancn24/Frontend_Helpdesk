@@ -18,7 +18,7 @@ import MainLayout from "@/components/layout/main-layout"
 import Link from "next/link"
 
 // Servicio
-import { getTicketById, addTicketComment, getStatusOptions, updateTicketStatus } from "@/services/ticketService"
+import { getTicketById, addTicketComment, getStatusOptions, updateTicketStatus, getTriageTickets } from "@/services/ticketService"
 
 export default function TicketDetailsComponent({ ticketId }) {
   const [ticket, setTicket] = useState(null)
