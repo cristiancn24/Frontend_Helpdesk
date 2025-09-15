@@ -12,17 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { getTickets as fetchTickets, getFilterOptions, createTicket, uploadTicketFiles } from "@/services/ticketService"
 import {
-  Plus,
-  Search,
-  Eye,
-  Edit,
-  MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
-  Users,
-  Filter,
-  X,
-  Upload,
+  Plus, Search, Eye, Edit, MoreHorizontal, ChevronLeft, ChevronRight, Users, Filter, X, Upload,
 } from "lucide-react"
 import MainLayout from "@/components/layout/main-layout"
 import { Label } from "@/components/ui/label"
@@ -33,6 +23,10 @@ import { useAuth } from "@/context/AuthContext"
 import { toast } from "react-toastify"
 
 export default function TicketsComponent() {
+  const { user } = useAuth() || {}
+  const roleId = Number(user?.role_id ?? 0)
+  const isSupport = roleId === 4 || roleId === 11
+
   const [tickets, setTickets] = useState([])
   const [page, setPage] = useState(1)
   const [limit] = useState(15)
@@ -47,337 +41,202 @@ export default function TicketsComponent() {
   const [activeFilters, setActiveFilters] = useState({})
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
-  const [showLatest, setShowLatest] = useState(false)
-  const [newTicketForm, setNewTicketForm] = useState({
-    oficinaId: "",
-    asunto: "",
-    descripcion: "",
-  })
+  const [newTicketForm, setNewTicketForm] = useState({ oficinaId: "", asunto: "", descripcion: "" })
   const [attachedFiles, setAttachedFiles] = useState([])
+
   const [filterOptions, setFilterOptions] = useState({
-  technicians: [],
-  statuses: [],
-  priorities: [],
-  categories: [],
-  offices: [],
-});
-const ALL = "__all__";
+    technicians: [], statuses: [], priorities: [], categories: [], offices: [],
+  })
 
-// Ejemplos de onValueChange para cada Select:
-const setFilter = (key, value) =>
-  setActiveFilters(prev => ({
-    ...prev,
-    [key]: (value === ALL || value === "" || value == null) ? null : value
-  }));
+  const ALL = "__all__"
 
-useEffect(() => {
-  let cancel = false;
+  // ✅ Arranca ocultando cerrados. Si NO es soporte, lo ponemos en true.
+  const [showClosed, setShowClosed] = useState(false)
+  useEffect(() => {
+    if (!isSupport) setShowClosed(true)
+  }, [isSupport])
 
-  async function loadFilterOptions() {
-    try {
-      const data = await getFilterOptions(); // { technicians, statuses, priorities, categories, offices }
-      if (!cancel) setFilterOptions(data);
-    } catch (err) {
-      console.error("Error cargando filtros:", err);
-    }
-  }
+  const setFilter = (key, value) =>
+    setActiveFilters(prev => ({
+      ...prev,
+      [key]: (value === ALL || value === "" || value == null) ? null : value
+    }))
 
-  loadFilterOptions();
-  return () => { cancel = true; };
-}, []);
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const data = await getFilterOptions()
+        if (!cancel) setFilterOptions(data)
+      } catch (err) {
+        console.error("Error cargando filtros:", err)
+      }
+    })()
+    return () => { cancel = true }
+  }, [])
 
+  useEffect(() => { setPage(1) }, [activeFilters, search, showClosed])
 
-
- useEffect(() => {
-  setPage(1);
-}, [activeFilters, search]);
-
-  // Ir a una página válida (1..totalPages)
-const goToPage = (p) => {
-  setPage(Math.max(1, Math.min(p, totalPages)));
-};
-
-// Rango "Mostrando X a Y de Z"
-const start = (page - 1) * limit + 1;
-const end = Math.min(page * limit, totalItems);
-
+  const goToPage = (p) => setPage(Math.max(1, Math.min(p, totalPages)))
+  const start = (page - 1) * limit + 1
+  const end = Math.min(page * limit, totalItems)
 
   const queryParams = useMemo(() => {
-  const {
-    statusId, categoryId, officeId, departmentId,
-    technicianId, dateFrom, dateTo, priority
-  } = activeFilters;
+    const {
+      statusId, categoryId, officeId, departmentId,
+      technicianId, dateFrom, dateTo, priority
+    } = activeFilters
 
-  const hasStrongFilter =
-    (priority && priority !== ALL) ||
-    statusId || categoryId || officeId || departmentId ||
-    technicianId || dateFrom || dateTo || (search && search.trim());
+    const hasStrongFilter =
+      (priority && priority !== ALL) ||
+      statusId || categoryId || officeId || departmentId ||
+      technicianId || dateFrom || dateTo || (search && search.trim())
 
-  const params = {
-    page,
-    limit,
-    sortBy: "created_at",
-    order: "desc",
-    ...(hasStrongFilter ? {} : { latest: 1 }), // 👈 solo latest si NO hay filtros
-  };
+    const params = {
+      page,
+      limit,
+      sortBy: "created_at",
+      order: "desc",
+      ...(hasStrongFilter ? {} : { latest: 1 }),
+    }
 
-  if (search && search.trim()) params.q = search.trim();
-  if (statusId)     params.statusId = statusId;
-  if (categoryId)   params.categoryId = categoryId;
-  if (officeId)     params.officeId = officeId;
-  if (departmentId) params.departmentId = departmentId;
-  if (technicianId) params.technicianId = technicianId;
-  if (dateFrom)     params.dateFrom = dateFrom;
-  if (dateTo)       params.dateTo = dateTo;
-  if (priority && priority !== ALL) params.priority = priority; // 👈 importante
+    if (search && search.trim()) params.q = search.trim()
+    if (statusId)     params.statusId = statusId
+    if (categoryId)   params.categoryId = categoryId
+    if (officeId)     params.officeId = officeId
+    if (departmentId) params.departmentId = departmentId
+    if (technicianId) params.technicianId = technicianId
+    if (dateFrom)     params.dateFrom = dateFrom
+    if (dateTo)       params.dateTo = dateTo
+    if (priority && priority !== ALL) params.priority = priority
 
-  return params;
-}, [
-  page, limit, search,
-  activeFilters.statusId, activeFilters.categoryId, activeFilters.officeId,
-  activeFilters.departmentId, activeFilters.technicianId,
-  activeFilters.dateFrom, activeFilters.dateTo, activeFilters.priority
-]);
+    // 👇 Clave para soporte: el backend decide si aplica según el rol real (req.user)
+    params.showClosed = showClosed ? 1 : 0
 
-
+    return params
+  }, [
+    page, limit, search, showClosed,
+    activeFilters.statusId, activeFilters.categoryId, activeFilters.officeId,
+    activeFilters.departmentId, activeFilters.technicianId,
+    activeFilters.dateFrom, activeFilters.dateTo, activeFilters.priority
+  ])
 
   const loadTickets = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const res = await fetchTickets(queryParams);
-      // res.data viene ya en el shape de tu tabla (id '#1234', title, status, etc.)
-      setTickets(res.data);
-      setTotalPages(res.totalPages);
-      setTotalItems(res.totalItems);
+      setLoading(true)
+      setError(null)
+      const res = await fetchTickets(queryParams)
+      setTickets(res.data)
+      setTotalPages(res.totalPages)
+      setTotalItems(res.totalItems)
     } catch (e) {
-      console.error(e);
-      setError("No se pudieron cargar los tickets");
+      console.error(e)
+      setError("No se pudieron cargar los tickets")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    loadTickets();
+    loadTickets()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParams]);
+  }, [queryParams])
 
-  
+  const normalizeText = (text) =>
+    (text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 
-  // Función para normalizar texto (quitar acentos, pasar a minúsculas)
-const normalizeText = (text) => {
-  if (!text) return "";
-  return text
-    .toLowerCase()
-    .normalize("NFD") // separa acentos
-    .replace(/[\u0300-\u036f]/g, ""); // quita acentos
-};
-
-
-
-// Mapea status normalizados a clases CSS
-const getStatusBadge = (status) => {
-  const normalized = normalizeText(status);
-
-  switch (normalized) {
-    case "abierto":
-    case "pendiente":
-      return "bg-blue-100 text-blue-800";
-    case "cerrado":
-    case "closed":
-      return "bg-gray-100 text-gray-800";
-    case "en progreso":
-    case "asignado":
-      return "bg-yellow-100 text-yellow-800";
-    case "resuelto":
-    case "resolved":
-      return "bg-green-100 text-green-800";
-    default:
-      return "bg-gray-200 text-gray-800";
+  const getStatusBadge = (status) => {
+    const s = normalizeText(status)
+    if (["abierto","pendiente"].includes(s)) return "bg-blue-100 text-blue-800"
+    if (["cerrado","closed"].includes(s))    return "bg-gray-100 text-gray-800"
+    if (["en progreso","asignado"].includes(s)) return "bg-yellow-100 text-yellow-800"
+    if (["resuelto","resolved"].includes(s)) return "bg-green-100 text-green-800"
+    return "bg-gray-200 text-gray-800"
   }
-};
 
-// Mapea prioridad normalizada a clases CSS
-const getPriorityBadge = (priority) => {
-  const normalized = normalizeText(priority);
-
-  switch (normalized) {
-    case "urgente":
-    case "urgent":
-      return "bg-red-100 text-red-800";
-    case "alta":
-    case "high":
-      return "bg-orange-100 text-orange-800";
-    case "media":
-    case "medium":
-      return "bg-yellow-100 text-yellow-800";
-    case "baja":
-    case "low":
-      return "bg-green-100 text-green-800";
-    default:
-      return "bg-gray-200 text-gray-800";
+  const getPriorityBadge = (priority) => {
+    const p = normalizeText(priority)
+    if (["urgente","urgent"].includes(p)) return "bg-red-100 text-red-800"
+    if (["alta","high"].includes(p))      return "bg-orange-100 text-orange-800"
+    if (["media","medium"].includes(p))   return "bg-yellow-100 text-yellow-800"
+    if (["baja","low"].includes(p))       return "bg-green-100 text-green-800"
+    return "bg-gray-200 text-gray-800"
   }
-};
 
-
-  const getActiveFiltersCount = () =>
-  Object.values(activeFilters).filter(v => v != null).length;
-
-
-  const clearAllFilters = () => {
-    setActiveFilters({})
-  }
+  const getActiveFiltersCount = () => Object.values(activeFilters).filter(v => v != null).length
+  const clearAllFilters = () => setActiveFilters({})
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files)
     const newFiles = files.map((file) => ({
       id: Date.now() + Math.random(),
-      file: file,
-      name: file.name,
-      size: file.size,
-      type: file.type,
+      file, name: file.name, size: file.size, type: file.type,
     }))
     setAttachedFiles((prev) => [...prev, ...newFiles])
-    // Limpiar el input para permitir seleccionar el mismo archivo de nuevo si es necesario
     e.target.value = ""
   }
-
-  const removeFile = (fileId) => {
-    setAttachedFiles((prev) => prev.filter((file) => file.id !== fileId))
-  }
-
+  const removeFile = (fileId) => setAttachedFiles((prev) => prev.filter((f) => f.id !== fileId))
   const formatFileSize = (bytes) => {
     if (bytes === 0) return "0 Bytes"
-    const k = 1024
-    const sizes = ["Bytes", "KB", "MB", "GB"]
+    const k = 1024, sizes = ["Bytes", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
-
-  const getFileIcon = (fileType) => {
-    if (fileType.startsWith("image/")) return "🖼️"
-    if (fileType.includes("pdf")) return "📄"
-    if (fileType.includes("word")) return "📝"
-    if (fileType.includes("excel") || fileType.includes("spreadsheet")) return "📊"
-    if (fileType.includes("zip") || fileType.includes("rar")) return "🗜️"
+  const getFileIcon = (type) => {
+    if (type.startsWith("image/")) return "🖼️"
+    if (type.includes("pdf")) return "📄"
+    if (type.includes("word")) return "📝"
+    if (type.includes("excel") || type.includes("spreadsheet")) return "📊"
+    if (type.includes("zip") || type.includes("rar")) return "🗜️"
     return "📎"
   }
 
   const handleNewTicketSubmit = async (e) => {
-  e.preventDefault();
-  const { oficinaId, asunto, descripcion } = newTicketForm;
-
-  if (!oficinaId || !asunto?.trim() || !descripcion?.trim()) {
-    toast.error("Por favor, completa todos los campos");
-    return;
-  }
-
-  const payload = {
-    subject: asunto.trim(),
-    comment: descripcion.trim(),
-    office_id: Number(oficinaId),      // 👈 usa office_id (lo que espera el backend)
-    category_service_id: null,
-    office_support_to: 1,
-  };
-
-  try {
-    setIsCreating(true);
-
-    // 1) Crear ticket
-    const created = await createTicket(payload);
-    const ticketId =
-      created?.id ??
-      created?.data?.id ??
-      created?.data?.data?.id; // robusto por si tu service envuelve data
-
-    if (!ticketId) {
-      throw new Error("No se pudo obtener el ID del ticket recién creado");
+    e.preventDefault()
+    const { oficinaId, asunto, descripcion } = newTicketForm
+    if (!oficinaId || !asunto?.trim() || !descripcion?.trim()) {
+      toast.error("Por favor, completa todos los campos")
+      return
+    }
+    const payload = {
+      subject: asunto.trim(),
+      comment: descripcion.trim(),
+      office_id: Number(oficinaId),
+      category_service_id: null,
+      office_support_to: 1,
     }
 
-    // 2) Subir adjuntos (si hay)
-    if (attachedFiles.length > 0) {
-      // pasa los File nativos (no los wrappers)
-      const onlyFiles = attachedFiles.map((f) => f.file);
-      await uploadTicketFiles(ticketId, onlyFiles);
-      toast.success(`Ticket #${ticketId} creado y ${onlyFiles.length} archivo(s) subido(s)`);
-    } else {
-      toast.success(`Ticket #${ticketId} creado`);
+    try {
+      setIsCreating(true)
+      const created = await createTicket(payload)
+      const ticketId = created?.id ?? created?.data?.id ?? created?.data?.data?.id
+      if (!ticketId) throw new Error("No se pudo obtener el ID del ticket recién creado")
+
+      if (attachedFiles.length > 0) {
+        const onlyFiles = attachedFiles.map((f) => f.file)
+        await uploadTicketFiles(ticketId, onlyFiles)
+        toast.success(`Ticket #${ticketId} creado y ${onlyFiles.length} archivo(s) subido(s)`)
+      } else {
+        toast.success(`Ticket #${ticketId} creado`)
+      }
+
+      await loadTickets()
+      setNewTicketForm({ oficinaId: "", asunto: "", descripcion: "" })
+      setAttachedFiles([])
+      setIsNewTicketOpen(false)
+    } catch (error) {
+      console.error("Error al crear/subir archivos:", error)
+      toast.error(error?.message || "No se pudo crear el ticket o subir archivos")
+    } finally {
+      setIsCreating(false)
     }
-
-    // 3) Refrescar tabla y limpiar
-    await loadTickets();
-    setNewTicketForm({ oficinaId: "", asunto: "", descripcion: "" });
-    setAttachedFiles([]);
-    setIsNewTicketOpen(false);
-  } catch (error) {
-    console.error("Error al crear/subir archivos:", error);
-    toast.error(error?.message || "No se pudo crear el ticket o subir archivos");
-  } finally {
-    setIsCreating(false);
   }
 
-
-    // Resetear formulario y cerrar modal
-    setNewTicketForm({
-      oficina: "",
-      asunto: "",
-      prioridad: "",
-      descripcion: "",
-    })
-    setAttachedFiles([])
-    setIsNewTicketOpen(false)
-
-    // Mostrar mensaje de éxito (puedes reemplazar con toast)
-    toast.success("Ticket creado exitosamente")
-  }
-
-  const handleFormChange = (field, value) => {
-    setNewTicketForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
+  const handleFormChange = (field, value) => setNewTicketForm((prev) => ({ ...prev, [field]: value }))
 
   return (
     <MainLayout title="Tickets">
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-orange-600">89</p>
-              <p className="text-sm text-gray-600">Abiertos</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-600">45</p>
-              <p className="text-sm text-gray-600">En Progreso</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">234</p>
-              <p className="text-sm text-gray-600">Resueltos</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-gray-600">879</p>
-              <p className="text-sm text-gray-600">Cerrados</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Actions Bar */}
+      {/* Barra superior */}
       <Card className="mb-6">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -387,7 +246,7 @@ const getPriorityBadge = (priority) => {
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar tickets..." className="pl-10" />
               </div>
 
-              {/* Filters Button */}
+              {/* Filtros */}
               <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="relative bg-transparent">
@@ -401,25 +260,16 @@ const getPriorityBadge = (priority) => {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Filtros de Tickets</DialogTitle>
-                  </DialogHeader>
+                  <DialogHeader><DialogTitle>Filtros de Tickets</DialogTitle></DialogHeader>
                   <div className="space-y-6 py-4">
-                    {/* Primera fila de filtros */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Técnico</label>
                         <Select value={activeFilters.technicianId ?? ""} onValueChange={(v) => setFilter("technicianId", v || null)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar técnico" />
-                          </SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar técnico" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={ALL}>Todos los técnicos</SelectItem>
-                            {filterOptions.technicians.map(t => (
-                              <SelectItem key={t.id} value={String(t.id)}>
-                                {t.name}
-                              </SelectItem>
-                            ))}
+                            {filterOptions.technicians.map(t => (<SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -427,16 +277,10 @@ const getPriorityBadge = (priority) => {
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Estado</label>
                         <Select value={activeFilters.statusId ?? ""} onValueChange={(v) => setFilter("statusId", v || null)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar estado" />
-                          </SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={ALL}>Todos los estados</SelectItem>
-                            {filterOptions.statuses.map(s => (
-                              <SelectItem key={s.id} value={String(s.id)}>
-                                {s.name}
-                              </SelectItem>
-                            ))}
+                            {filterOptions.statuses.map(s => (<SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -447,31 +291,20 @@ const getPriorityBadge = (priority) => {
                           <SelectTrigger><SelectValue placeholder="Seleccionar prioridad" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={ALL}>Todas las prioridades</SelectItem>
-                            {filterOptions.priorities.map(p => (
-                              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-                            ))}
+                            {filterOptions.priorities.map(p => (<SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>))}
                           </SelectContent>
                         </Select>
-
-
                       </div>
                     </div>
 
-                    {/* Segunda fila de filtros */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Categoría</label>
                         <Select value={activeFilters.categoryId ?? ""} onValueChange={(v) => setFilter("categoryId", v || null)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar categoría" />
-                          </SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={ALL}>Todas las categorías</SelectItem>
-                            {filterOptions.categories.map(c => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
+                            {filterOptions.categories.map(c => (<SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -479,52 +312,48 @@ const getPriorityBadge = (priority) => {
                       <div>
                         <label className="text-sm font-medium text-gray-700 mb-2 block">Sucursal/Departamento</label>
                         <Select value={activeFilters.officeId ?? ""} onValueChange={(v) => setFilter("officeId", v || null)}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar ubicación" />
-                          </SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar ubicación" /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value={ALL}>Todas las ubicaciones</SelectItem>
-                            {filterOptions.offices.map(o => (
-                              <SelectItem key={o.id} value={String(o.id)}>
-                                {o.name}
-                              </SelectItem>
-                            ))}
+                            {filterOptions.offices.map(o => (<SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>))}
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
 
-
-                    {/* Filtros de fecha */}
                     <div>
                       <label className="text-sm font-medium text-gray-700 mb-2 block">Rango de Fechas</label>
                       <div className="flex gap-2 items-center">
-                        <Input type="date" className="flex-1" placeholder="Fecha desde" value={activeFilters.dateFrom ?? ""} onChange={(e) => setFilter("dateFrom", e.target.value)} />
+                        <Input type="date" className="flex-1" value={activeFilters.dateFrom ?? ""} onChange={(e) => setFilter("dateFrom", e.target.value)} />
                         <span className="text-gray-500 text-sm">hasta</span>
-                        <Input type="date" className="flex-1" placeholder="Fecha hasta" value={activeFilters.dateTo ?? ""} onChange={(e) => setFilter("dateTo", e.target.value)} />
+                        <Input type="date" className="flex-1" value={activeFilters.dateTo ?? ""} onChange={(e) => setFilter("dateTo", e.target.value)} />
                       </div>
                     </div>
 
-                    {/* Botones de acción */}
                     <div className="flex gap-3 pt-4 border-t">
-                      <Button
-                        className="bg-cyan-500 hover:bg-cyan-600 text-white"
-                        onClick={() => setIsFilterOpen(false)}
-                      >
-                        Aplicar Filtros
-                      </Button>
-                      <Button variant="outline" onClick={clearAllFilters}>
-                        Limpiar Filtros
-                      </Button>
-                      <Button variant="ghost" onClick={() => setIsFilterOpen(false)}>
-                        Cancelar
-                      </Button>
+                      <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={() => setIsFilterOpen(false)}>Aplicar Filtros</Button>
+                      <Button variant="outline" onClick={clearAllFilters}>Limpiar Filtros</Button>
+                      <Button variant="ghost" onClick={() => setIsFilterOpen(false)}>Cancelar</Button>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
+
+              {/* Selector para soporte: Abiertos / Todos */}
+              {isSupport && (
+                <Select value={showClosed ? "all" : "open"} onValueChange={(v) => setShowClosed(v === "all")}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Mostrar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Solo abiertos</SelectItem>
+                    <SelectItem value="all">Todos</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
+            {/* Nuevo Ticket */}
             <Dialog open={isNewTicketOpen} onOpenChange={setIsNewTicketOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
@@ -533,75 +362,33 @@ const getPriorityBadge = (priority) => {
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Crear Nuevo Ticket</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Crear Nuevo Ticket</DialogTitle></DialogHeader>
                 <form onSubmit={handleNewTicketSubmit} className="space-y-6 py-4">
-                  {/* Campo Oficina */}
                   <div className="space-y-2">
-                    <Label htmlFor="oficina" className="text-sm font-medium text-gray-700">
-                      Oficina / Sucursal *
-                    </Label>
-                    <Select value={newTicketForm.oficinaId} onValueChange={(value) => handleFormChange("oficinaId", value)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar oficina" />
-                      </SelectTrigger>
+                    <Label htmlFor="oficina" className="text-sm font-medium text-gray-700">Oficina / Sucursal *</Label>
+                    <Select value={newTicketForm.oficinaId} onValueChange={(value) => setNewTicketForm(p => ({ ...p, oficinaId: value }))}>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar oficina" /></SelectTrigger>
                       <SelectContent>
-                        {filterOptions.offices.map(o => (
-                          <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>
-                        ))}
+                        {filterOptions.offices.map(o => (<SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* Campo Asunto */}
                   <div className="space-y-2">
-                    <Label htmlFor="asunto" className="text-sm font-medium text-gray-700">
-                      Asunto *
-                    </Label>
-                    <Input
-                      id="asunto"
-                      type="text"
-                      placeholder="Describe brevemente el problema o solicitud"
-                      value={newTicketForm.asunto}
-                      onChange={(e) => handleFormChange("asunto", e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                  
-
-                  {/* Campo Descripción */}
-                  <div className="space-y-2">
-                    <Label htmlFor="descripcion" className="text-sm font-medium text-gray-700">
-                      Descripción *
-                    </Label>
-                    <Textarea
-                      id="descripcion"
-                      placeholder="Describe detalladamente el problema, error o solicitud. Incluye pasos para reproducir el problema si aplica."
-                      value={newTicketForm.descripcion}
-                      onChange={(e) => handleFormChange("descripcion", e.target.value)}
-                      className="min-h-[120px] resize-none"
-                    />
-                    <p className="text-xs text-gray-500">
-                      Proporciona la mayor cantidad de detalles posible para ayudarnos a resolver tu solicitud más
-                      rápido.
-                    </p>
+                    <Label htmlFor="asunto">Asunto *</Label>
+                    <Input id="asunto" value={newTicketForm.asunto} onChange={(e) => setNewTicketForm(p => ({ ...p, asunto: e.target.value }))} />
                   </div>
 
-                  {/* Campo Archivos Adjuntos */}
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700">Archivos Adjuntos</Label>
+                    <Label htmlFor="descripcion">Descripción *</Label>
+                    <Textarea id="descripcion" className="min-h-[120px]" value={newTicketForm.descripcion} onChange={(e) => setNewTicketForm(p => ({ ...p, descripcion: e.target.value }))} />
+                  </div>
 
-                    {/* Botón para seleccionar archivos */}
+                  <div className="space-y-2">
+                    <Label>Archivos Adjuntos</Label>
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                      <input
-                        type="file"
-                        id="file-upload"
-                        multiple
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.zip,.rar,.txt"
-                      />
+                      <input type="file" id="file-upload" multiple onChange={handleFileSelect} className="hidden"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.zip,.rar,.txt" />
                       <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center gap-2">
                         <Upload className="h-8 w-8 text-gray-400" />
                         <div>
@@ -612,18 +399,12 @@ const getPriorityBadge = (priority) => {
                       </label>
                     </div>
 
-                    {/* Lista de archivos seleccionados */}
                     {attachedFiles.length > 0 && (
                       <div className="space-y-2">
-                        <p className="text-sm font-medium text-gray-700">
-                          Archivos seleccionados ({attachedFiles.length})
-                        </p>
+                        <p className="text-sm font-medium text-gray-700">Archivos seleccionados ({attachedFiles.length})</p>
                         <div className="space-y-2 max-h-32 overflow-y-auto">
                           {attachedFiles.map((file) => (
-                            <div
-                              key={file.id}
-                              className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border"
-                            >
+                            <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border">
                               <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <span className="text-lg">{getFileIcon(file.type)}</span>
                                 <div className="flex-1 min-w-0">
@@ -631,13 +412,7 @@ const getPriorityBadge = (priority) => {
                                   <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
                                 </div>
                               </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeFile(file.id)}
-                                className="h-8 w-8 p-0 text-gray-400 hover:text-red-500"
-                              >
+                              <Button type="button" variant="ghost" size="sm" onClick={() => removeFile(file.id)} className="h-8 w-8 p-0 text-gray-400 hover:text-red-500">
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
@@ -645,67 +420,25 @@ const getPriorityBadge = (priority) => {
                         </div>
                       </div>
                     )}
-
-                    <p className="text-xs text-gray-500">
-                      Puedes adjuntar capturas de pantalla, documentos o cualquier archivo que ayude a explicar el
-                      problema.
-                    </p>
                   </div>
 
-                  {/* Botones de acción */}
                   <div className="flex gap-3 pt-4 border-t">
                     <Button type="submit" disabled={isCreating} className="bg-cyan-500 hover:bg-cyan-600 text-white">
                       <Plus className="mr-2 h-4 w-4" />
                       {isCreating ? "Creando..." : "Crear Ticket"}
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => setIsNewTicketOpen(false)}>
-                      Cancelar
-                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setIsNewTicketOpen(false)}>Cancelar</Button>
                   </div>
                 </form>
               </DialogContent>
             </Dialog>
           </div>
-
-          {/* Active Filters Display */}
-          {getActiveFiltersCount() > 0 && (
-            <div className="mt-4 pt-4 border-t">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-gray-600">Filtros activos:</span>
-                {Object.entries(activeFilters).map(([key, value]) =>
-                  value && value !== ALL ? (
-                    <Badge key={key} variant="secondary" className="bg-cyan-100 text-cyan-800">
-                      {key}: {value}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-1 h-4 w-4 p-0 hover:bg-cyan-200"
-                        onClick={() => setActiveFilters((prev) => ({ ...prev, [key]: null }))}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ) : null,
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllFilters}
-                  className="text-cyan-600 hover:text-cyan-800"
-                >
-                  Limpiar todos
-                </Button>
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 
-      {/* Tickets Table */}
+      {/* Tabla */}
       <Card>
-        <CardHeader>
-          <CardTitle>Todos los Tickets</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Todos los Tickets</CardTitle></CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -748,18 +481,13 @@ const getPriorityBadge = (priority) => {
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
                         <AvatarFallback className="text-xs">
-                          {ticket.assignee
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
+                          {ticket.assignee.split(" ").map((n) => n[0]).join("")}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-sm">{ticket.assignee}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <span className="text-sm text-gray-600">{ticket.category}</span>
-                  </TableCell>
+                  <TableCell><span className="text-sm text-gray-600">{ticket.category}</span></TableCell>
                   <TableCell>
                     <div>
                       <p className="text-sm font-medium">{ticket.createdBy}</p>
@@ -775,31 +503,29 @@ const getPriorityBadge = (priority) => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-    <DropdownMenuItem asChild>
-      <Link href={`/tickets/${ticket.id.replace("#", "")}`}>
-        <Eye className="mr-2 h-4 w-4" />
-        Ver Detalles
-      </Link>
-    </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/tickets/${ticket.id.replace("#", "")}`}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Ver Detalles
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditTicket(ticket.id)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Editar Ticket
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setReassignTicketId(ticket.id)}>
+                          <Users className="mr-2 h-4 w-4" />
+                          Reasignar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
 
-    <DropdownMenuItem onClick={() => setEditTicket(ticket.id)}>
-      <Edit className="mr-2 h-4 w-4" />
-      Editar Ticket
-    </DropdownMenuItem>
-
-    <DropdownMenuItem onClick={() => setReassignTicketId(ticket.id)}>
-      <Users className="mr-2 h-4 w-4" />
-      Reasignar
-    </DropdownMenuItem>
-  </DropdownMenuContent>
-
-  <TicketEditAndReassign
-    ticket={ticket}
-    isEditing={editTicket === ticket.id}
-    setIsEditing={(value) => setEditTicket(value ? ticket.id : null)}
-    isReassigning={reassignTicketId === ticket.id}
-    setIsReassigning={(value) => setReassignTicketId(value ? ticket.id : null)}
-  />
+                      <TicketEditAndReassign
+                        ticket={ticket}
+                        isEditing={editTicket === ticket.id}
+                        setIsEditing={(value) => setEditTicket(value ? ticket.id : null)}
+                        isReassigning={reassignTicketId === ticket.id}
+                        setIsReassigning={(value) => setReassignTicketId(value ? ticket.id : null)}
+                      />
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
@@ -807,51 +533,34 @@ const getPriorityBadge = (priority) => {
             </TableBody>
           </Table>
 
-          {/* Pagination */}
+          {/* Paginación */}
           <div className="flex items-center justify-between mt-6">
-  <p className="text-sm text-gray-500">
-    {totalItems > 0
-      ? `Mostrando ${start} a ${end} de ${totalItems} tickets`
-      : 'Sin resultados'}
-  </p>
-
-  <div className="flex items-center space-x-2">
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => goToPage(page - 1)}
-      disabled={page === 1 || loading}
-    >
-      <ChevronLeft className="h-4 w-4 mr-1" />
-      Anterior
-    </Button>
-
-    {/* Botones numerados (simple): muestra 1..totalPages */}
-    {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-      <Button
-        key={n}
-        variant="outline"
-        size="sm"
-        onClick={() => goToPage(n)}
-        className={page === n ? "bg-cyan-500 text-white hover:bg-cyan-600" : ""}
-        disabled={loading}
-      >
-        {n}
-      </Button>
-    ))}
-
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => goToPage(page - 0 + 1)}
-      disabled={page === totalPages || loading}
-    >
-      Siguiente
-      <ChevronRight className="h-4 w-4 ml-1" />
-    </Button>
-  </div>
-</div>
-
+            <p className="text-sm text-gray-500">
+              {totalItems > 0 ? `Mostrando ${start} a ${end} de ${totalItems} tickets` : 'Sin resultados'}
+            </p>
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={() => goToPage(page - 1)} disabled={page === 1 || loading}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Anterior
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                <Button
+                  key={n}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => goToPage(n)}
+                  className={page === n ? "bg-cyan-500 text-white hover:bg-cyan-600" : ""}
+                  disabled={loading}
+                >
+                  {n}
+                </Button>
+              ))}
+              <Button variant="outline" size="sm" onClick={() => goToPage(page + 1)} disabled={page === totalPages || loading}>
+                Siguiente
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </MainLayout>

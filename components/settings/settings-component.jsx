@@ -1,40 +1,79 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Plus, Edit, Trash2, MoreHorizontal, Building, Users, SettingsIcon } from "lucide-react"
-import MainLayout from "@/components/layout/main-layout"
-import { getOffices, createOffice } from "@/services/officeService"
-import { getDepartments, createDepartment } from "@/services/departmentsService"
-import { getCategories, createCategory } from "@/services/categoryService"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  MoreHorizontal,
+  Building,
+  Users,
+  SettingsIcon,
+} from "lucide-react";
+import MainLayout from "@/components/layout/main-layout";
 import { toast } from "react-toastify";
 
+// Servicios (asegúrate de que existan estas funciones)
+import { getOffices, createOffice } from "@/services/officeService";
+import { getDepartments, createDepartment } from "@/services/departmentsService";
+import {
+  getCategories,
+  createCategory,
+  updateCategoryStatus,
+} from "@/services/categoryService";
+
 export default function SettingsComponent() {
-  const [activeSection, setActiveSection] = useState("services")
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState("services");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newItemForm, setNewItemForm] = useState({
     name: "",
-    description: "",
-    code: "",
-  })
+    id: "",
+  });
 
-  const [offices, setOffices] = useState([])
-  const [departments, setDepartments] = useState([])
-  const [categories, setCategories] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [offices, setOffices] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Para deshabilitar el switch mientras se guarda
+  const [savingCategoryId, setSavingCategoryId] = useState(null);
+
+  // Normalizador robusto para el campo 'active' (boolean | number | string)
+  const toBool = (v) => (typeof v === "boolean" ? v : v === 1 || v === "1" || String(v).toLowerCase() === "true");
 
   const sections = [
     {
       id: "services",
       name: "Categorías de Servicios",
       icon: SettingsIcon,
-      description: "Gestionar tipos de servicios disponibles",
+      description:
+        "Gestionar tipos de servicios disponibles y su visibilidad en el pool",
       color: "bg-blue-100 text-blue-800",
     },
     {
@@ -51,158 +90,157 @@ export default function SettingsComponent() {
       description: "Organizar departamentos y áreas",
       color: "bg-pink-100 text-pink-800",
     },
-  ]
+  ];
 
-    const fetchOffices = async () => {
+  // -------- Fetchers --------
+  const fetchOffices = async () => {
     try {
-      setLoading(true)
-      const data = await getOffices()
-      setOffices(data)
+      setLoading(true);
+      const data = await getOffices();
+      setOffices(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching offices:", error)
-      toast.error("Error al obtener oficinas")
+      console.error("Error fetching offices:", error);
+      toast.error("Error al obtener oficinas");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
-  const fetchCategories = async () => {
-    try {
-      setLoading(true)
-      const data = await getCategories()
-      setCategories(data)
-    } catch (error) {
-      console.error("Error fetching categories:", error)
-      toast.error("Error al obtener categorías")
-    } finally {
-      setLoading(false)
-    }
-  }
+  };
 
   const fetchDepartments = async () => {
     try {
-      setLoading(true)
-      const data = await getDepartments()
-      setDepartments(data)
+      setLoading(true);
+      const data = await getDepartments();
+      setDepartments(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching departments:", error)
-      toast.error("Error al obtener departamentos")
+      console.error("Error fetching departments:", error);
+      toast.error("Error al obtener departamentos");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
+  const fetchCategories = async () => {
+  setLoading(true);
+  try {
+    const data = await getCategories();
+    setCategories((Array.isArray(data) ? data : []).map(c => ({ ...c, active: toBool(c.active) })));
+  } catch (e) {
+    toast.error("Error al obtener categorías");
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     if (activeSection === "offices") {
-      fetchOffices()
+      fetchOffices();
     } else if (activeSection === "departments") {
-      fetchDepartments()
+      fetchDepartments();
     } else if (activeSection === "services") {
-      fetchCategories()
+      fetchCategories();
     }
-  }, [activeSection])
+  }, [activeSection]);
 
-
-
+  // -------- Helpers --------
   const getCurrentData = () => {
-    if (activeSection === "offices") return offices
-    if (activeSection === "departments") return departments
-    if (activeSection === "services") return categories
-    return []
-  }
+    if (activeSection === "offices") return offices;
+    if (activeSection === "departments") return departments;
+    if (activeSection === "services") return categories;
+    return [];
+  };
 
-  const getCurrentSection = () => {
-    return sections.find((section) => section.id === activeSection)
-  }
-
-  const handleAddItem = async (e) => {
-    e.preventDefault()
-    try {
-    if (activeSection === "offices") {
-      const newOfficeData = {
-        name: newItemForm.name,
-        id: newItemForm.id,
-      };
-
-      await createOffice(newOfficeData);
-
-      toast.success("Oficina creada correctamente", {
-        position: "top-center",
-        autoClose: 2000,
-      });
-
-      setIsAddModalOpen(false);
-      await fetchOffices();
-
-      setNewItemForm({
-        name: "",
-        id: "",
-      });
-    } else if (activeSection === "departments") {
-      const newDepartmentData = {
-        name: newItemForm.name,
-      };
-      await createDepartment(newDepartmentData);
-
-      toast.success("Departamento creado correctamente", {
-        position: "top-center",
-        autoClose: 2000,
-      });
-      setIsAddModalOpen(false);
-      await fetchDepartments();
-      setNewItemForm({
-        name: "",
-        id: "",
-      });
-    } else if (activeSection === "services") {
-      const newCategoryData = {
-        name: newItemForm.name,
-      };
-      await createCategory(newCategoryData);
-
-      toast.success("Categoría creada correctamente", {
-        position: "top-center",
-        autoClose: 2000,
-      });
-      setIsAddModalOpen(false);
-      await fetchCategories();
-      setNewItemForm({
-        name: "",
-        id: "",
-      });
-    }
-    setNewItemForm({
-      name: "",
-      id: "",
-    });
-      
-
-    } catch (error) {
-      console.error("Error al agregar el elemento:", error);
-      toast.error("Error al crear la oficina", {
-        position: "top-center",
-        autoClose: 2000,
-      });
-    }
-  }
+  const getCurrentSection = () =>
+    sections.find((section) => section.id === activeSection);
 
   const handleFormChange = (field, value) => {
-    setNewItemForm((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
+    setNewItemForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // -------- Crear (Add) --------
+  const handleAddItem = async (e) => {
+    e.preventDefault();
+    try {
+      if (activeSection === "offices") {
+        const newOfficeData = {
+          name: newItemForm.name,
+          id: newItemForm.id, // si tu backend lo ignora, no pasa nada
+        };
+        await createOffice(newOfficeData);
+        toast.success("Oficina creada correctamente", {
+          position: "top-center",
+          autoClose: 2000,
+        });
+        setIsAddModalOpen(false);
+        await fetchOffices();
+      } else if (activeSection === "departments") {
+        const newDepartmentData = { name: newItemForm.name };
+        await createDepartment(newDepartmentData);
+        toast.success("Departamento creado correctamente", {
+          position: "top-center",
+          autoClose: 2000,
+        });
+        setIsAddModalOpen(false);
+        await fetchDepartments();
+      } else if (activeSection === "services") {
+        const newCategoryData = {
+          name: newItemForm.name,
+          // Si quieres forzar activo por defecto desde FE:
+          // active: true,
+        };
+        await createCategory(newCategoryData);
+        toast.success("Categoría creada correctamente", {
+          position: "top-center",
+          autoClose: 2000,
+        });
+        setIsAddModalOpen(false);
+        await fetchCategories();
+      }
+
+      setNewItemForm({ name: "", id: "" });
+    } catch (error) {
+      console.error("Error al agregar el elemento:", error);
+      toast.error("Error al crear el elemento", {
+        position: "top-center",
+        autoClose: 2000,
+      });
+    }
+  };
+
+  // -------- Toggle categoría (activar/desactivar) --------
+  const handleToggleCategory = async (category) => {
+    if (!category?.id) return;
+    const next = !category.active;
+    try {
+      setSavingCategoryId(category.id);
+      await updateCategoryStatus(category.id, next);
+      // actualizar en memoria
+      setCategories((prev) =>
+        prev.map((c) => (c.id === category.id ? { ...c, active: next } : c))
+      );
+      toast.success(
+        next ? "Categoría activada para el pool" : "Categoría desactivada del pool"
+      );
+    } catch (e) {
+      console.error("toggle category error:", e);
+      toast.error("No se pudo cambiar el estado de la categoría");
+    } finally {
+      setSavingCategoryId(null);
+    }
+  };
 
   return (
     <MainLayout title="Configuración del Sistema">
       <div className="space-y-6">
-        {/* Header con descripción */}
+        {/* Header */}
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Configuración del Sistema</h2>
-              <p className="text-gray-600">Administra las configuraciones principales del sistema de helpdesk</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                Configuración del Sistema
+              </h2>
+              <p className="text-gray-600">
+                Administra las configuraciones principales del sistema de helpdesk
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -215,29 +253,42 @@ export default function SettingsComponent() {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {sections.map((section) => {
-                const Icon = section.icon
+                const Icon = section.icon;
+                const active = activeSection === section.id;
                 return (
                   <Button
                     key={section.id}
-                    variant={activeSection === section.id ? "default" : "outline"}
+                    variant={active ? "default" : "outline"}
                     className={`h-auto p-4 flex flex-col items-start gap-3 text-left ${
-                      activeSection === section.id ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "hover:bg-gray-50"
+                      active ? "bg-cyan-500 hover:bg-cyan-600 text-white" : "hover:bg-gray-50"
                     }`}
                     onClick={() => setActiveSection(section.id)}
                   >
                     <div className="flex items-center gap-3 w-full">
-                      <div className={`p-2 rounded-lg ${activeSection === section.id ? "bg-white/20" : section.color}`}>
-                        <Icon className={`h-5 w-5 ${activeSection === section.id ? "text-white" : "text-current"}`} />
+                      <div
+                        className={`p-2 rounded-lg ${
+                          active ? "bg-white/20" : section.color
+                        }`}
+                      >
+                        <Icon
+                          className={`h-5 w-5 ${
+                            active ? "text-white" : "text-current"
+                          }`}
+                        />
                       </div>
                       <div className="flex-1">
                         <h3 className="font-medium">{section.name}</h3>
-                        <p className={`text-sm ${activeSection === section.id ? "text-white/80" : "text-gray-500"}`}>
+                        <p
+                          className={`text-sm ${
+                            active ? "text-white/80" : "text-gray-500"
+                          }`}
+                        >
                           {section.description}
                         </p>
                       </div>
                     </div>
                   </Button>
-                )
+                );
               })}
             </div>
           </CardContent>
@@ -252,17 +303,20 @@ export default function SettingsComponent() {
                   <>
                     <div className={`p-2 rounded-lg ${getCurrentSection().color}`}>
                       {(() => {
-                        const Icon = getCurrentSection().icon
-                        return Icon ? <Icon className="h-5 w-5" /> : null
+                        const Icon = getCurrentSection().icon;
+                        return Icon ? <Icon className="h-5 w-5" /> : null;
                       })()}
                     </div>
                     <div>
                       <CardTitle>{getCurrentSection().name}</CardTitle>
-                      <p className="text-sm text-gray-600 mt-1">{getCurrentSection().description}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {getCurrentSection().description}
+                      </p>
                     </div>
                   </>
                 )}
               </div>
+
               <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-cyan-500 hover:bg-cyan-600 text-white">
@@ -272,7 +326,9 @@ export default function SettingsComponent() {
                 </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Agregar {getCurrentSection()?.name}</DialogTitle>
+                    <DialogTitle>
+                      Agregar {getCurrentSection()?.name}
+                    </DialogTitle>
                   </DialogHeader>
                   <form onSubmit={handleAddItem} className="space-y-4 py-4">
                     <div className="space-y-2">
@@ -285,12 +341,32 @@ export default function SettingsComponent() {
                         required
                       />
                     </div>
+
+                    {activeSection === "offices" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="code">Código (opcional)</Label>
+                        <Input
+                          id="code"
+                          placeholder="Ej: 001"
+                          value={newItemForm.id}
+                          onChange={(e) => handleFormChange("id", e.target.value)}
+                        />
+                      </div>
+                    )}
+
                     <div className="flex gap-3 pt-4">
-                      <Button type="submit" className="bg-cyan-500 hover:bg-cyan-600 text-white">
+                      <Button
+                        type="submit"
+                        className="bg-cyan-500 hover:bg-cyan-600 text-white"
+                      >
                         <Plus className="mr-2 h-4 w-4" />
                         Agregar
                       </Button>
-                      <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsAddModalOpen(false)}
+                      >
                         Cancelar
                       </Button>
                     </div>
@@ -299,50 +375,91 @@ export default function SettingsComponent() {
               </Dialog>
             </div>
           </CardHeader>
-          <CardContent>
-            {/* Tabla de elementos */}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead className="w-[120px] text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {getCurrentData().map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-mono text-sm">{item.id}</TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="w-[120px] text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
 
-            {/* Estadísticas de la sección */}
+          <CardContent>
+            {/* Tabla */}
+            <div className="w-full overflow-x-auto">
+              <Table className="w-full">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    {activeSection === "services" && <TableHead>Pool</TableHead>}
+                    <TableHead className="w-[120px] text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-8 text-center text-gray-500">
+                        Cargando...
+                      </TableCell>
+                    </TableRow>
+                  ) : getCurrentData().length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-8 text-center text-gray-500">
+                        Sin datos
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    getCurrentData().map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-mono text-sm">{item.id}</TableCell>
+                        <TableCell className="font-medium">{item.name}</TableCell>
+
+                        {/* Switch sólo para Categorías */}
+                        {activeSection === "services" && (
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Switch
+                                checked={!!item.active}
+                                disabled={savingCategoryId === item.id}
+                                onCheckedChange={() => handleToggleCategory(item)}
+                              />
+                              <span
+                                className={`text-sm ${
+                                  item.active ? "text-green-700" : "text-gray-600"
+                                }`}
+                              >
+                                {item.active ? "Activo" : "Inactivo"}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
+
+                        <TableCell className="w-[120px] text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Estadísticas */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <div className="grid grid-cols-1 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-cyan-600">{getCurrentData().length}</p>
+                  <p className="text-2xl font-bold text-cyan-600">
+                    {Array.isArray(getCurrentData()) && getCurrentData().length}
+                  </p>
                   <p className="text-sm text-gray-600">Total de elementos</p>
                 </div>
               </div>
@@ -351,5 +468,5 @@ export default function SettingsComponent() {
         </Card>
       </div>
     </MainLayout>
-  )
+  );
 }

@@ -19,3 +19,8 @@ export const createCategory = async (categoryData) => {
     throw error;
   }
 };
+
+export const updateCategoryStatus = async (categoryId, active) => {
+  const { data } = await api.patch(`/categoryServices/${categoryId}`, { active });
+  return data;
+};
