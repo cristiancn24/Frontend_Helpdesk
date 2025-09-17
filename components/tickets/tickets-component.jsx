@@ -50,6 +50,18 @@ export default function TicketsComponent() {
 
   const ALL = "__all__"
 
+  // ===== Helpers rango "Hoy | Todos"
+  const todayISO = () => new Date().toISOString().slice(0, 10)
+  const [rangeMode, setRangeMode] = useState("today") // "today" | "all"
+
+  // Si el usuario usa rango de fechas manual, cambiamos a "all"
+  useEffect(() => {
+    if (activeFilters.dateFrom || activeFilters.dateTo) setRangeMode("all")
+  }, [activeFilters.dateFrom, activeFilters.dateTo])
+
+  // Cambiar modo resetea a página 1
+  useEffect(() => { setPage(1) }, [rangeMode])
+
   // ✅ Arranca ocultando cerrados. Si NO es soporte, lo ponemos en true.
   const [showClosed, setShowClosed] = useState(false)
   useEffect(() => {
@@ -100,14 +112,22 @@ export default function TicketsComponent() {
       ...(hasStrongFilter ? {} : { latest: 1 }),
     }
 
+    // 🔽 Si estamos en "hoy" y no hay fechas manuales, forzamos hoy
+    let df = dateFrom
+    let dt = dateTo
+    if (rangeMode === "today" && !df && !dt) {
+      df = todayISO()
+      dt = todayISO()
+    }
+
     if (search && search.trim()) params.q = search.trim()
     if (statusId)     params.statusId = statusId
     if (categoryId)   params.categoryId = categoryId
     if (officeId)     params.officeId = officeId
     if (departmentId) params.departmentId = departmentId
     if (technicianId) params.technicianId = technicianId
-    if (dateFrom)     params.dateFrom = dateFrom
-    if (dateTo)       params.dateTo = dateTo
+    if (df)           params.dateFrom = df
+    if (dt)           params.dateTo = dt
     if (priority && priority !== ALL) params.priority = priority
 
     // 👇 Clave para soporte: el backend decide si aplica según el rol real (req.user)
@@ -115,7 +135,7 @@ export default function TicketsComponent() {
 
     return params
   }, [
-    page, limit, search, showClosed,
+    page, limit, search, showClosed, rangeMode,
     activeFilters.statusId, activeFilters.categoryId, activeFilters.officeId,
     activeFilters.departmentId, activeFilters.technicianId,
     activeFilters.dateFrom, activeFilters.dateTo, activeFilters.priority
@@ -244,6 +264,30 @@ export default function TicketsComponent() {
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar tickets..." className="pl-10" />
+              </div>
+
+              {/* Toggle Hoy | Todos */}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={rangeMode === "today" ? "default" : "outline"}
+                  className={rangeMode === "today" ? "bg-cyan-500 hover:bg-cyan-600 text-white" : ""}
+                  onClick={() => {
+                    // al pasar a "today" limpiamos fechas manuales para que aplique el hoy automático
+                    setActiveFilters(prev => ({ ...prev, dateFrom: null, dateTo: null }))
+                    setRangeMode("today")
+                  }}
+                >
+                  Hoy
+                </Button>
+                <Button
+                  size="sm"
+                  variant={rangeMode === "all" ? "default" : "outline"}
+                  className={rangeMode === "all" ? "bg-cyan-500 hover:bg-cyan-600 text-white" : ""}
+                  onClick={() => setRangeMode("all")}
+                >
+                  Todos
+                </Button>
               </div>
 
               {/* Filtros */}

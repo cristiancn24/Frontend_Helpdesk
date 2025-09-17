@@ -380,7 +380,7 @@ export default function AsignadorComponent() {
                   <th className="text-left p-4 font-medium text-gray-600"></th>
                   <th className="text-left p-4 font-medium text-gray-600">ID</th>
                   <th className="text-left p-4 font-medium text-gray-600">Título</th>
-                  <th className="text-left p-4 font-medium text-gray-600">Cliente</th>
+                  <th className="text-left p-4 font-medium text-gray-600">Registrado por</th>
                   <th className="text-left p-4 font-medium text-gray-600">Estado</th>
                   <th className="text-left p-4 font-medium text-gray-600">Prioridad</th>
                   <th className="text-left p-4 font-medium text-gray-600">Técnico</th>

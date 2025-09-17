@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams, useParams } from "next/navigation";
 import Link from "next/link";
+import { toast } from "react-toastify";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,9 @@ import {
   ArrowLeft, Calendar, Clock, User, Building, Tag,
   Send, Edit, History, FileText, CheckCircle, XCircle
 } from "lucide-react";
+
 import MainLayout from "@/components/layout/main-layout";
+import { useAuth } from "@/context/AuthContext";
 
 import {
   getTicketById,
@@ -26,11 +29,20 @@ import {
   updateTicketStatus
 } from "@/services/ticketService";
 
-const POOL_ROUTE = "/pool"; // cambia si tu ruta real es otra
+const DEFAULT_LIST_ROUTE = "/tickets";
 
-export default function TicketDetailsComponent({ ticketId }) {
+export default function TicketDetailsComponent({ ticketId: ticketIdProp }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const params = useParams();
+
+  const { user } = useAuth() || {};
+  const myId = Number(user?.id ?? 0);
+  const roleId = Number(user?.role_id ?? 0);
+  const canOverrideClose = [1, 5].includes(roleId); // Admin/Supervisor pueden cerrar cualquiera (ajústalo si quieres)
+
+  // Soporta prop o ruta dinámica /tickets/[id]
+  const ticketId = ticketIdProp ?? params?.id;
 
   const [ticket, setTicket] = useState(null);
   const [comments, setComments] = useState([]);
@@ -40,23 +52,40 @@ export default function TicketDetailsComponent({ ticketId }) {
   const [err, setErr] = useState(null);
 
   const [newComment, setNewComment] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
   const [statusOptions, setStatusOptions] = useState([]);
   const [statusId, setStatusId] = useState(null);
   const [savingStatus, setSavingStatus] = useState(false);
 
-  // Lee ?from=/tickets/pool
+  // Back solo via ?from=..., fallback /tickets
   const fromParam = searchParams.get("from");
-  const [backHref, setBackHref] = useState(POOL_ROUTE);
-
-  useEffect(() => {
-    const viaQuery = fromParam && fromParam.startsWith("/") ? fromParam : null;
-    const viaSession = typeof window !== "undefined" ? sessionStorage.getItem("lastTicketsList") : null;
-    setBackHref(viaQuery || viaSession || POOL_ROUTE);
+  const backHref = useMemo(() => {
+    if (fromParam && fromParam.startsWith("/")) return fromParam;
+    return DEFAULT_LIST_ROUTE;
   }, [fromParam]);
 
-  // Cargar opciones de estados
+  // Detectar estado "cerrado"
+  const isClosingStatus = (sid) => {
+    if (!sid) return false;
+    const st = statusOptions.find((s) => s.id === sid);
+    const name = (st?.name || "").toLowerCase();
+    return sid === 5 || /cerrad|clos/.test(name); // ajusta ID si aplica
+  };
+  const closing = isClosingStatus(statusId);
+
+  // Reglas de comentario para cerrar
+  const hasAnyComment = comments.length > 0; // puedes refinarlo a "del usuario actual" si envías user_id
+  const needsCommentToClose = closing && !(newComment.trim() || hasAnyComment);
+
+  // Bloqueo si NO soy el técnico asignado (a menos que sea admin/supervisor)
+  const notAssigneeTryingToClose =
+    closing &&
+    !canOverrideClose &&
+    ticket?.assigned_user_id &&
+    Number(ticket.assigned_user_id) !== myId;
+
+  // Cargar estados
   useEffect(() => {
     (async () => {
       try {
@@ -68,7 +97,7 @@ export default function TicketDetailsComponent({ ticketId }) {
     })();
   }, []);
 
-  // Helpers para adjuntos
+  // Helpers adjuntos
   const isImageExt = (ext) =>
     ["png", "jpg", "jpeg", "gif", "bmp", "webp"].includes((ext || "").toLowerCase());
 
@@ -92,19 +121,21 @@ export default function TicketDetailsComponent({ ticketId }) {
         setLoading(true);
         setErr(null);
 
-        let raw = await getTicketById(ticketId);
-        if (raw && raw.data) raw = raw.data;
+        let raw = await getTicketById(ticketId); // tu servicio ya devuelve el objeto de datos
+        if (raw && raw.data) raw = raw.data; // por si en algún lugar lo devuelves anidado
 
         setStatusId(raw.status_id ?? null);
 
-        // Mapeo principal
+        // Mapeo principal (IMPORTANTE: necesitamos assigned_user_id)
         const mapped = {
           id: `#${raw.id}`,
+          rawId: raw.id,
           title: raw.subject,
           description: raw.comment,
           status: raw.status || "Open",
           priority: raw.priority || "Medium",
           assignee: raw.assigned_to || "No asignado",
+          assigned_user_id: raw.assigned_user_id ?? null, // 👈 NECESARIO
           reporter: raw.created_by || "—",
           office: raw.office_name || raw.office || "—",
           category: raw.category_name || raw.category || "—",
@@ -186,16 +217,7 @@ export default function TicketDetailsComponent({ ticketId }) {
     return map[status] || "bg-gray-100 text-gray-800";
   };
 
-  const getPriorityBadge = (priority) => {
-    const map = {
-      High: "bg-red-100 text-red-800",
-      Medium: "bg-yellow-100 text-yellow-800",
-      Low: "bg-green-100 text-green-800"
-    };
-    return map[priority] || "bg-gray-100 text-gray-800";
-  };
-
-  // Comentarios
+  // Agregar comentario
   const handleAddComment = async (e) => {
     e.preventDefault();
     const text = newComment.trim();
@@ -208,28 +230,62 @@ export default function TicketDetailsComponent({ ticketId }) {
       setComments(prev => [
         ...prev,
         {
-          id: saved.id,
-          author: saved.user_name || "Tú",
+          id: saved?.id ?? Date.now(),
+          author: saved?.user_name || "Tú",
           role: "Usuario",
-          content: saved.content,
-          timestamp: new Date(saved.created_at).toLocaleString(),
+          content: saved?.content ?? text,
+          timestamp: new Date(saved?.created_at ?? Date.now()).toLocaleString(),
           isInternal: false
         }
       ]);
       setNewComment("");
+      toast.success("Comentario agregado");
     } catch (err) {
-      alert(err.message || "No se pudo agregar el comentario");
+      toast.error(err?.message || "No se pudo agregar el comentario");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Cambiar estado
+  // Cambiar estado (comentario requerido si cierra + bloqueo si no eres asignado)
   const handleUpdateStatus = async () => {
     if (!statusId) return;
+
     try {
       setSavingStatus(true);
-      await updateTicketStatus(ticketId, statusId);
+
+      if (notAssigneeTryingToClose) {
+        toast.error("Solo el técnico asignado (o un admin/supervisor) puede cerrar este ticket.");
+        setSavingStatus(false);
+        return;
+      }
+
+      if (closing) {
+        const text = newComment.trim();
+
+        if (text) {
+          const saved = await addTicketComment(ticketId, text);
+          setComments(prev => [
+            ...prev,
+            {
+              id: saved?.id ?? Date.now(),
+              author: saved?.user_name || "Tú",
+              role: "Usuario",
+              content: saved?.content ?? text,
+              timestamp: new Date(saved?.created_at ?? Date.now()).toLocaleString(),
+              isInternal: false
+            }
+          ]);
+          setNewComment("");
+        } else if (!hasAnyComment) {
+          toast.error("Para cerrar el ticket debes agregar al menos un comentario.");
+          document.getElementById("comment")?.focus();
+          setSavingStatus(false);
+          return;
+        }
+      }
+
+      await updateTicketStatus(ticketId, Number(statusId));
 
       const newName = statusOptions.find(s => s.id === statusId)?.name || ticket.status;
       setTicket(prev => prev ? { ...prev, status: newName, updated: new Date().toLocaleString() } : prev);
@@ -246,8 +302,11 @@ export default function TicketDetailsComponent({ ticketId }) {
           bgColor: "bg-blue-100"
         }
       ]);
+
+      toast.success(`Estado actualizado a ${newName}`);
     } catch (e) {
-      alert(e.message || "No se pudo actualizar el estado");
+      const msg = e?.message || "No se pudo actualizar el estado";
+      toast.error(msg);
     } finally {
       setSavingStatus(false);
     }
@@ -286,7 +345,7 @@ export default function TicketDetailsComponent({ ticketId }) {
             <p className="text-gray-600">{ticket.title}</p>
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => { /* abre tu modal de edición si aplica */ }}>
+          <Button variant="outline" size="sm" onClick={() => { /* abrir modal edición si aplica */ }}>
             <Edit className="mr-2 h-4 w-4" />
             Editar
           </Button>
@@ -384,6 +443,11 @@ export default function TicketDetailsComponent({ ticketId }) {
                       onChange={(e) => setNewComment(e.target.value)}
                       className="mt-2 min-h-[100px]"
                     />
+                    {needsCommentToClose && (
+                      <p className="mt-1 text-xs text-red-600">
+                        Para cerrar el ticket debes agregar un comentario.
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center justify-end">
                     <Button type="submit" className="bg-cyan-500 hover:bg-cyan-600" disabled={submitting}>
@@ -422,14 +486,30 @@ export default function TicketDetailsComponent({ ticketId }) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {notAssigneeTryingToClose && (
+                    <p className="text-xs text-red-600">
+                      Solo el técnico asignado (o un admin/supervisor) puede cerrar este ticket.
+                    </p>
+                  )}
                 </div>
 
                 <Button
                   className="w-full bg-cyan-500 hover:bg-cyan-600"
                   onClick={handleUpdateStatus}
-                  disabled={!statusId || savingStatus}
+                  disabled={
+                    !statusId ||
+                    savingStatus ||
+                    needsCommentToClose ||
+                    notAssigneeTryingToClose
+                  }
                 >
-                  {savingStatus ? "Guardando..." : "Actualizar Estado"}
+                  {savingStatus
+                    ? "Guardando..."
+                    : notAssigneeTryingToClose
+                      ? "No puedes cerrar este ticket"
+                      : needsCommentToClose
+                        ? "Agrega un comentario para cerrar"
+                        : "Actualizar Estado"}
                 </Button>
               </CardContent>
             </Card>

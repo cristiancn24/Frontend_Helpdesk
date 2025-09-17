@@ -94,11 +94,23 @@ export async function addTicketComment(ticketId, comment) {
 }
 
 export async function updateTicketStatus(id, statusId) {
-  const tid = normalizeTicketId(id);
-  const { data } = await axiosInstance.patch(`/tickets/${tid}`, { status_id: Number(statusId) });
-  if (!data?.success) throw new Error(data?.error || "No se pudo actualizar");
-  return data.data;
+  const tid = String(id).replace(/^#/, "");
+  try {
+    const { data } = await axiosInstance.patch(`/tickets/${tid}`, { status_id: Number(statusId) });
+    if (!data?.success) throw new Error(data?.error || "No se pudo actualizar");
+    return data.data;
+  } catch (err) {
+    const msg =
+      err?.response?.data?.error ||
+      err?.response?.data?.message ||
+      err?.message ||
+      "No se pudo actualizar";
+    const e = new Error(msg);
+    e.status = err?.response?.status;
+    throw e;
+  }
 }
+
 
 export async function updateTicket(id, patch) {
   const tid = normalizeTicketId(id);
